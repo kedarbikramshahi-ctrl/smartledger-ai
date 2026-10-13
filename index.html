@@ -1,48 +1,212 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SmartLedger AI</title><style>
-*{box-sizing:border-box}body{margin:0;background:#f5f6f3;color:#172c28;font:15px system-ui}button,input{font:inherit}button{cursor:pointer}aside{position:fixed;width:224px;background:#163c34;color:white;height:100vh;padding:32px 24px}.logo{font-size:22px;font-weight:750}.logo small{color:#a5c7ba;font-size:12px;display:block;margin-top:8px}.nav{margin-top:56px;padding:14px;background:#2b5045;border-radius:10px}.asidefoot{position:absolute;bottom:28px;font-size:12px;color:#bdd0c8}main{margin-left:224px;padding:40px;max-width:1500px}header{display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:34px;letter-spacing:-1px;margin:12px 0}h2{font-size:20px;margin:0 0 20px}p{color:#63736d;line-height:1.6}.eyebrow{font-size:11px;letter-spacing:2px;font-weight:700;color:#638174}.btn{border:0;border-radius:8px;background:#174c3b;color:white;padding:12px 18px}.secondary{background:white;border:1px solid #d5ded8;color:#244e3c}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin:30px 0}.card,.panel{background:white;border:1px solid #e0e6df;border-radius:14px;padding:24px}.card span{color:#65746d;font-size:13px}.amount{font-size:29px;font-weight:700;margin-top:12px}.card small{display:block;color:#7b8a82;margin-top:8px}.grid{display:grid;grid-template-columns:1.7fr 1fr;gap:22px}.chart{overflow-x:auto;height:190px;display:flex;align-items:end;gap:15px;margin-top:20px}.barwrap{flex:1;min-width:75px;text-align:center;color:#7b8a82;font-size:11px}.bar{background:#afd4bc;border-radius:5px 5px 0 0;min-height:3px;margin-bottom:9px}.summary{background:#eaf2e9}.badge{color:#276245;background:#dcebdc;border-radius:30px;padding:5px 9px;font-size:11px}.tablepanel{margin-top:22px;overflow:auto}table{width:100%;border-collapse:collapse;white-space:nowrap}th,td{text-align:left;padding:16px 9px;border-bottom:1px solid #edf0eb}th{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#738176}td{font-size:13px}.tablehead{display:flex;justify-content:space-between;align-items:center}.link{background:none;border:0;color:#267051;padding:5px}.notice{font-size:12px;color:#748176;margin-top:22px}dialog{border:0;border-radius:16px;width:min(560px,94vw);padding:30px;box-shadow:0 20px 80px #0003}dialog::backdrop{background:#102e2866}.fields{display:grid;grid-template-columns:1fr 1fr;gap:16px}label{display:block;font-size:12px;color:#5a6a61}input{width:100%;margin-top:7px;padding:11px;border:1px solid #cdd8cf;border-radius:7px}footer{display:flex;justify-content:end;gap:10px;margin-top:24px}#message{color:#276245} @media(max-width:900px){aside{position:static;width:auto;height:auto;padding:18px 24px}.nav,.asidefoot{display:none}main{margin:0;padding:22px}.cards{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}header{align-items:start}h1{font-size:27px}.amount{font-size:24px}}@media(max-width:450px){header{flex-direction:column}.fields{grid-template-columns:1fr}}
-.ledger-filter{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:16px 0}.ledger-filter label{min-width:160px}.ledger-filter p{margin:0;flex-basis:100%}.tablehead{flex-wrap:wrap;gap:12px}</style><aside><div class="logo">◈ SmartLedger <small>YOUR EVERYDAY BUSINESS COMPANION</small></div><div class="nav">▦ &nbsp; Store overview</div><div class="asidefoot">Small store. Clear picture.<br><br>Fellowship project · Version 02</div></aside><main><header><div><div class="eyebrow">YOUR STORE, AT A GLANCE</div><h1>A clearer view of your store.</h1><p style="margin:0">Record your day. Understand your numbers.</p></div><button class="btn" id="add">＋ Add daily record</button></header><form id="ledger-filter" class="ledger-filter"><label>From date<input type="date" id="filter-start"></label><label>To date<input type="date" id="filter-end"></label><button class="btn secondary" type="submit">Apply filter</button><button class="link" type="button" id="filter-clear">Clear filter</button><p id="filter-status" role="status" aria-live="polite"></p></form><div class="cards"><div class="card"><span id="sales-label"></span><div class="amount" id="sales"></div><small>Cash + card sales</small></div><div class="card"><span id="expenses-label"></span><div class="amount" id="expenses"></div><small>Recorded cash payments</small></div><div class="card"><span id="closing-label"></span><div class="amount" id="closing"></div><small>Calculated drawer balance</small></div><div class="card"><span id="days-label"></span><div class="amount" id="days"></div><small>Every entry tells a story</small></div></div><div class="grid"><section class="panel"><div class="tablehead"><h2>Daily sales</h2><span class="badge" id="chart-range"></span></div><p>Cash + card sales for recorded days in the selected range.</p><div class="chart" id="chart"></div></section><section class="panel summary"><span class="badge" id="summary-range"></span><h2 style="margin-top:20px">Your numbers, in plain English.</h2><p id="summary"></p><small style="color:#697b6d">Calculated summary. AI integration is planned.</small></section></div><section class="panel tablepanel"><div class="tablehead"><h2>Daily ledger</h2><div><button class="btn secondary" id="backup">Backup</button> <button class="btn secondary" id="restore">Restore</button> <input type="file" id="restorefile" accept="application/json,.json" hidden><button class="btn secondary" id="export">↓ Export CSV</button></div></div><table><thead><tr><th>Date</th><th>Opening cash</th><th>Cash sales</th><th>Card sales</th><th>Cash expenses</th><th>Withdrawals</th><th>Closing cash</th><th>Notes</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></section><div class="notice">Demo records are fictional. Your changes are saved in this browser only. Download a backup to keep a separate copy. Card sales do not increase drawer cash.</div><p id="message" role="status"></p><button class="link" id="reset">Restore sample records</button></main><dialog id="dialog"><form id="form"><h2 id="formtitle">Add daily record</h2><p>Keep cash and card payments separate.</p><div class="fields"><label>Date<input type="date" name="date" required></label><label>Opening cash ($)<input type="number" min="0" step="0.01" name="opening" required></label><label>Cash sales ($)<input type="number" min="0" step="0.01" name="cash" required></label><label>Card sales ($)<input type="number" min="0" step="0.01" name="card" required></label><label>Cash expenses ($)<input type="number" min="0" step="0.01" name="expenses" required></label><label>Cash withdrawals ($)<input type="number" min="0" step="0.01" name="withdrawals" required></label><label style="grid-column:1/-1">Notes (optional)<input name="notes" maxlength="300" placeholder="For example: supplier delivery or cash deposit"></label></div><p id="estimate"></p><footer><button type="button" class="btn secondary" id="cancel">Cancel</button><button class="btn">Save record</button></footer></form></dialog><script>
-function validateBackup(data){
- if(!data||data.version!==1||!Array.isArray(data.records)||data.records.length>10000)throw Error('This is not a supported SmartLedger backup.');
- const dates=new Set();
- return data.records.map(r=>{
-  if(!r||typeof r.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||!Number.isFinite(Date.parse(r.date+'T00:00:00Z'))||new Date(r.date+'T00:00:00Z').toISOString().slice(0,10)!==r.date||dates.has(r.date))throw Error('Backup contains an invalid or duplicate date.');
-  dates.add(r.date);const clean={date:r.date};
-  for(const k of ['opening','cash','card','expenses','withdrawals']){if(!Number.isSafeInteger(r[k])||r[k]<0||r[k]>10000000000)throw Error('Backup contains an invalid amount.');clean[k]=r[k];}
-  if(r.notes!==undefined&&(typeof r.notes!=='string'||r.notes.length>300))throw Error('Backup contains invalid notes.');
-  clean.notes=r.notes||'';return clean;
- });
-}
-const key='smartledger-v1',money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n/100),iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);const today=iso(new Date());function sample(){return Array.from({length:7},(_,i)=>{let d=new Date();d.setDate(d.getDate()-6+i);return {date:iso(d),opening:20000,cash:[42000,38500,51200,46800,59000,72600,63500][i],card:[61200,57000,68400,64000,78000,92000,81500][i],expenses:[8000,6500,12000,7600,9300,15000,10800][i],withdrawals:25000}})}let records;try{records=JSON.parse(localStorage.getItem(key))||sample()}catch{records=sample()}const close=r=>r.opening+r.cash-r.expenses-r.withdrawals,form=document.querySelector('#form'),dialog=document.querySelector('#dialog');let editing=null;const escapeText=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));function save(){try{localStorage.setItem(key,JSON.stringify(records))}catch{alert('Browser storage is unavailable. Export your records before closing this page.')}render()}let dateRange={start:'',end:''};
-function filteredRecords(){return records.filter(r=>(!dateRange.start||r.date>=dateRange.start)&&(!dateRange.end||r.date<=dateRange.end));}
-const filterForm=document.querySelector('#ledger-filter'),filterStart=document.querySelector('#filter-start'),filterEnd=document.querySelector('#filter-end');
-filterForm.onsubmit=e=>{e.preventDefault();filterEnd.setCustomValidity('');if(filterStart.value&&filterEnd.value&&filterStart.value>filterEnd.value){filterEnd.setCustomValidity('To date must be on or after From date.');filterEnd.reportValidity();return;}dateRange={start:filterStart.value,end:filterEnd.value};render();};
-filterForm.addEventListener('input',()=>filterEnd.setCustomValidity(''));
-document.querySelector('#filter-clear').onclick=()=>{filterForm.reset();filterEnd.setCustomValidity('');dateRange={start:'',end:''};render();};
-function rangeLabel(){
- if(dateRange.start&&dateRange.end)return dateRange.start===dateRange.end?dateRange.start:dateRange.start+' to '+dateRange.end;
- if(dateRange.start)return 'From '+dateRange.start;
- if(dateRange.end)return 'Through '+dateRange.end;
- return 'All records';
-}
-function render(){
- records.sort((a,b)=>b.date.localeCompare(a.date));
- const visible=filteredRecords(),label=rangeLabel(),sales=visible.reduce((a,r)=>a+r.cash+r.card,0),expenses=visible.reduce((a,r)=>a+r.expenses,0);
- for(const [id,title] of [['sales','Total sales'],['expenses','Cash expenses'],['closing','Latest closing cash'],['days','Days recorded']])document.querySelector('#'+id+'-label').textContent=title+' · '+label;
- document.querySelector('#chart-range').textContent=label;
- document.querySelector('#summary-range').textContent='Insights · '+label;
- document.querySelector('#sales').textContent=money(sales);
- document.querySelector('#expenses').textContent=money(expenses);
- document.querySelector('#closing').textContent=visible.length?money(close(visible[0])):'—';
- document.querySelector('#days').textContent=visible.length;
- document.querySelector('#filter-status').textContent=`Showing ${visible.length} of ${records.length} records · ${label}. Dashboard and CSV export use these records; backups include all records.`;
- document.querySelector('#rows').innerHTML=visible.map(r=>`<tr><td>${r.date}</td>${['opening','cash','card','expenses','withdrawals'].map(k=>`<td>${money(r[k])}</td>`).join('')}<td><strong>${money(close(r))}</strong></td><td>${escapeText(r.notes||'—')}</td><td><button class="link" data-edit="${r.date}">Edit</button><button class="link" data-delete="${r.date}">Delete</button></td></tr>`).join('')||'<tr><td colspan="9">No records match this date range. Clear the filter or add a daily record.</td></tr>';
- const dates=[...visible].reverse(),max=Math.max(1,...dates.map(r=>r.cash+r.card));
- document.querySelector('#chart').innerHTML=dates.map(r=>`<div class="barwrap"><div title="${r.date}: ${money(r.cash+r.card)}" class="bar" style="height:${(r.cash+r.card)/max*135}px"></div>${r.date}</div>`).join('')||'<p>No recorded days in this date range.</p>';
- document.querySelector('#summary').textContent=visible.length?`For ${label}, you recorded ${visible.length} ${visible.length===1?'day':'days'}, with ${money(sales)} in total sales and ${money(expenses)} in cash expenses. Average recorded daily sales were ${money(Math.round(sales/visible.length))}. Your strongest recorded day was ${visible.reduce((best,r)=>r.cash+r.card>best.cash+best.card?r:best,visible[0]).date}. Card sales accounted for ${Math.round(visible.reduce((a,r)=>a+r.card,0)/Math.max(1,sales)*100)}% of recorded sales.`:`No records for ${label}. Add a daily record or change the date range to see your summary.`;
-}
-
-function open(date=null){editing=date;form.reset();let r=records.find(x=>x.date===date);form.elements.date.max=today;form.elements.date.value=r?r.date:today;form.elements.notes.value=r?r.notes||'':'';['opening','cash','card','expenses','withdrawals'].forEach(k=>form.elements[k].value=r?(r[k]/100).toFixed(2):'0');document.querySelector('#formtitle').textContent=r?'Edit daily record':'Add daily record';estimate();dialog.showModal()}function estimate(){let n=k=>Math.round(Number(form.elements[k].value)*100);document.querySelector('#estimate').textContent='Closing cash: '+money(n('opening')+n('cash')-n('expenses')-n('withdrawals'))}form.addEventListener('input',estimate);document.querySelector('#add').onclick=()=>open();document.querySelector('#cancel').onclick=()=>dialog.close();form.onsubmit=e=>{e.preventDefault();let r={date:form.elements.date.value,notes:form.elements.notes.value.trim()};if(r.date>today){alert('Choose today or an earlier date.');return}for(let k of ['opening','cash','card','expenses','withdrawals']){r[k]=Math.round(Number(form.elements[k].value)*100);if(!Number.isSafeInteger(r[k])||r[k]<0)return}if(records.some(x=>x.date===r.date&&x.date!==editing)){alert('A record exists for this date. Edit that record instead.');return}if(close(r)<0&&!confirm('This entry gives a negative closing cash balance. Check your amounts. Save anyway?'))return;records=records.filter(x=>x.date!==editing);records.push(r);save();dialog.close();document.querySelector('#message').textContent='Daily record saved.'};document.querySelector('#rows').onclick=e=>{let b=e.target;if(b.dataset.edit)open(b.dataset.edit);if(b.dataset.delete&&confirm('Delete this daily record?')){records=records.filter(r=>r.date!==b.dataset.delete);save()}};document.querySelector('#reset').onclick=()=>{if(confirm('Replace your records with fictional sample data?')){records=sample();save()}};document.querySelector('#export').onclick=()=>{let cols=['date','opening','cash','card','expenses','withdrawals'];let csv='Date,Opening cash,Cash sales,Card sales,Cash expenses,Withdrawals,Closing cash,Notes\n'+filteredRecords().map(r=>[r.date,...cols.slice(1).map(k=>(r[k]/100).toFixed(2)),(close(r)/100).toFixed(2),'"'+(r.notes||'').replace(/"/g,'""')+'"'].join(',')).join('\n');let url=URL.createObjectURL(new Blob([csv],{type:'text/csv'})),a=document.createElement('a');a.href=url;a.download='smartledger-records.csv';a.click();URL.revokeObjectURL(url)};
-document.querySelector('#backup').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({version:1,records},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='smartledger-backup-'+today+'.json';a.click();URL.revokeObjectURL(url);document.querySelector('#message').textContent='Backup downloaded. Keep it somewhere you can find it.'};
-document.querySelector('#restore').onclick=()=>document.querySelector('#restorefile').click();
-document.querySelector('#restorefile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>5000000)throw Error('Backup is too large.');const restored=validateBackup(JSON.parse(await file.text()));if(confirm('Replace your current ledger with '+restored.length+' records from this backup?')){localStorage.setItem(key,JSON.stringify(restored));records=restored;render();document.querySelector('#message').textContent='Backup restored successfully.'}}catch(err){alert('Could not restore: '+err.message)}finally{e.target.value=''}};render();
-</script></html>
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SmartLedger AI</title>
+<link rel="stylesheet" href="/src/styles.css">
+<aside>
+<div class="logo">◈ SmartLedger <small>YOUR EVERYDAY BUSINESS COMPANION</small>
+</div>
+<div class="nav">▦ &nbsp; Store overview</div>
+<div class="asidefoot">Small store. Clear picture.<br>
+<br>Fellowship project · Version 02</div>
+</aside>
+<main>
+<section class="panel account-panel" aria-label="Account">
+ <div class="tablehead">
+<h2>Your SmartLedger account</h2>
+<span class="badge" id="account-mode">Fictional demo</span>
+</div>
+ <p id="account-status" role="status" aria-live="polite">Starting…</p>
+ <div id="auth-switch" class="auth-switch" aria-label="Choose account action">
+  <button class="btn" id="show-signin" type="button" aria-pressed="true">Sign in</button>
+  <button class="btn secondary" id="show-signup" type="button" aria-pressed="false">Create account</button>
+ </div>
+ <form id="auth-form" class="ledger-filter">
+  <p>Sign in to open your ledger.</p>
+  <label>Email<input name="email" type="email" autocomplete="username" required maxlength="254">
+</label>
+  <label>Password<input name="password" type="password" autocomplete="current-password" required minlength="6" maxlength="128">
+</label>
+  <button class="btn" type="submit" id="signin">Sign in</button>
+  <button class="btn secondary" type="button" id="google-signin">Continue with Google</button>
+ </form>
+ <form id="signup-form" class="ledger-filter" hidden>
+  <p>Create an account with your email and password. Then sign in to open your ledger.</p>
+  <label>Email<input name="email" type="email" autocomplete="username" required maxlength="254"></label>
+  <label>Password<input name="password" type="password" autocomplete="new-password" required minlength="6" maxlength="128"></label>
+  <label>Confirm password<input name="confirmation" type="password" autocomplete="new-password" required minlength="6" maxlength="128"></label>
+  <button class="btn" type="submit" id="signup">Create account</button>
+ </form>
+ <button id="signout" class="btn secondary" hidden>Sign out</button>
+ <button id="retry" class="link" hidden>Retry loading ledger</button>
+ <p id="auth-error" role="alert">
+</p>
+</section>
+<section id="import-panel" class="panel" hidden>
+ <h2>Existing browser records</h2>
+<p id="import-status">
+</p>
+ <button id="preview-import" class="btn secondary">Preview local import</button>
+</section>
+<header>
+<div>
+<div class="eyebrow">YOUR STORE, AT A GLANCE</div>
+<h1>A clearer view of your store.</h1>
+<p style="margin:0">Record your day. Understand your numbers.</p>
+</div>
+<button class="btn" id="add">＋ Add daily record</button>
+</header>
+<form id="ledger-filter" class="ledger-filter">
+<label>From date<input type="date" id="filter-start">
+</label>
+<label>To date<input type="date" id="filter-end">
+</label>
+<button class="btn secondary" type="submit">Apply filter</button>
+<button class="link" type="button" id="filter-clear">Clear filter</button>
+<p id="filter-status" role="status" aria-live="polite">
+</p>
+</form>
+<div class="cards">
+<div class="card">
+<span id="sales-label">
+</span>
+<div class="amount" id="sales">
+</div>
+<small>Cash + card sales</small>
+</div>
+<div class="card">
+<span id="expenses-label">
+</span>
+<div class="amount" id="expenses">
+</div>
+<small>Recorded cash payments</small>
+</div>
+<div class="card">
+<span id="closing-label">
+</span>
+<div class="amount" id="closing">
+</div>
+<small>Calculated drawer balance</small>
+</div>
+<div class="card">
+<span id="days-label">
+</span>
+<div class="amount" id="days">
+</div>
+<small>Every entry tells a story</small>
+</div>
+</div>
+<div class="grid">
+<section class="panel">
+<div class="tablehead">
+<h2>Daily sales</h2>
+<span class="badge" id="chart-range">
+</span>
+</div>
+<p>Cash + card sales for recorded days in the selected range.</p>
+<div class="chart" id="chart">
+</div>
+</section>
+<section class="panel summary">
+<span class="badge" id="summary-range">
+</span>
+<h2 style="margin-top:20px">Your numbers, in plain English.</h2>
+<p id="summary">
+</p>
+<small style="color:#697b6d">Calculated summary.</small>
+</section>
+</div>
+<section class="panel tablepanel">
+<div class="tablehead">
+<h2>Daily ledger</h2>
+<div>
+<button class="btn secondary" id="backup">Backup</button> <button class="btn secondary" id="restore">Restore</button> <input type="file" id="restorefile" accept="application/json,.json" hidden>
+<button class="btn secondary" id="export">↓ Export CSV</button>
+</div>
+</div>
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Opening cash</th>
+<th>Cash sales</th>
+<th>Card sales</th>
+<th>Cash expenses</th>
+<th>Withdrawals</th>
+<th>Closing cash</th>
+<th>Actual cash counted</th>
+<th>Cash difference</th>
+<th>Notes</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody id="rows">
+</tbody>
+</table>
+</section>
+<div class="notice">
+<span id="storage-notice">Fictional demo records are kept separately in this browser.</span> Download a backup to keep a separate copy. Card sales do not increase drawer cash.</div>
+<p id="message" role="status">
+</p>
+<button class="link" id="reset">Restore sample records</button>
+</main>
+<dialog id="import-dialog">
+ <h2>Review local import</h2>
+<p id="import-preview-status">
+</p>
+ <div class="import-scroll">
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Total sales</th>
+<th>Closing cash</th>
+<th>Cash count</th>
+<th>Import action</th>
+</tr>
+</thead>
+<tbody id="import-preview-rows">
+</tbody>
+</table>
+</div>
+ <p>Only dates absent from your account will be imported. Existing account records will not be overwritten. Your local copy will remain untouched, even after success.</p>
+ <footer>
+<button id="import-cancel" class="btn secondary">Cancel</button>
+<button id="import-confirm" class="btn">Import new dates</button>
+</footer>
+</dialog>
+<dialog id="dialog">
+<form id="form">
+<h2 id="formtitle">Add daily record</h2>
+<p>Keep cash and card payments separate.</p>
+<div class="fields">
+<label>Date<input type="date" name="date" required>
+</label>
+<label>Opening cash ($)<input type="number" min="0" step="0.01" name="opening" required>
+</label>
+<label>Cash sales ($)<input type="number" min="0" step="0.01" name="cash" required>
+</label>
+<label>Card sales ($)<input type="number" min="0" step="0.01" name="card" required>
+</label>
+<label>Cash expenses ($)<input type="number" min="0" step="0.01" name="expenses" required>
+</label>
+<label>Cash withdrawals ($)<input type="number" min="0" step="0.01" name="withdrawals" required>
+</label>
+<label>Actual cash counted ($, optional)<input type="number" min="0" max="100000000" step="0.01" name="actual" placeholder="Leave blank if not counted">
+</label>
+<label style="grid-column:1/-1">Notes (optional)<input name="notes" maxlength="300" placeholder="For example: supplier delivery or cash deposit">
+</label>
+</div>
+<p id="form-error" role="alert"></p>
+<p id="estimate">
+</p>
+<footer>
+<button type="button" class="btn secondary" id="cancel">Cancel</button>
+<button class="btn">Save record</button>
+</footer>
+</form>
+</dialog>
+<script type="module" src="/src/app.js">
+</script>
+</html>

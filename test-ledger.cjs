@@ -1,0 +1,98 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('index.html','utf8');
+const elements=new Map();
+function el(id){if(!elements.has(id))elements.set(id,{value:'',textContent:'',innerHTML:'',setAttribute(){},querySelectorAll(){return[]},addEventListener(){},setCustomValidity(v){this.validation=v},reportValidity(){},reset(){el('#filter-start').value='';el('#filter-end').value=''},click(){},close(){},showModal(){},elements:{}});return elements.get(id)}
+let stored=null,blobs=[],alerts=[],approve=true;
+const context=vm.createContext({Date,Intl,Set,JSON,Number,Math,String,Error,Blob,setTimeout,clearTimeout,createBackend:()=>null,document:{querySelector:el,createElement:()=>({click(){}})},localStorage:{getItem:()=>null,setItem:(k,v)=>stored=v},URL:{createObjectURL:b=>(blobs.push(b),'blob:test'),revokeObjectURL(){}},alert:v=>alerts.push(v),confirm:()=>approve});
+// Exercise the actual split modules, with Firebase disabled and a simulated DOM.
+for(const file of ['src/ledger.js','src/dashboard.js','src/app.js']){
+ const source=fs.readFileSync(file,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,'');
+ vm.runInContext(source,context,{filename:file});
+}
+const run=s=>vm.runInContext(s,context);
+run("records=[{date:'2026-01-01',opening:10000,cash:2000,card:3000,expenses:500,withdrawals:0,notes:'<test>'},{date:'2026-01-02',opening:10000,cash:4000,card:1000,expenses:0,withdrawals:0},{date:'2026-01-03',opening:10000,cash:6000,card:1000,expenses:0,withdrawals:0}];render();");
+function apply(start,end){el('#filter-start').value=start;el('#filter-end').value=end;el('#ledger-filter').onsubmit({preventDefault(){}})}
+(async()=>{
+assert.match(el('#rows').innerHTML,/&lt;test&gt;/);
+apply('2026-01-01','2026-01-02');assert.equal(run('filteredRecords().length'),2);
+assert.match(el('#summary').textContent,/you recorded 2 days, with/);
+assert.equal(el('#sales').textContent,'$100.00');
+assert.equal(el('#expenses').textContent,'$5.00');
+assert.equal(el('#closing').textContent,'$140.00');
+assert.equal(el('#days').textContent,2);
+assert.equal(el('#sales-label').textContent,'Total sales · 2026-01-01 to 2026-01-02');
+assert.equal(el('#chart-range').textContent,'2026-01-01 to 2026-01-02');
+assert.equal((el('#chart').innerHTML.match(/class="bar"/g)||[]).length,2);
+assert.ok(el('#chart').innerHTML.indexOf('2026-01-01')<el('#chart').innerHTML.indexOf('2026-01-02'));
+assert.doesNotMatch(el('#chart').innerHTML,/2026-01-03/);
+assert.match(el('#summary').textContent,/Average recorded daily sales were \$50.00/);
+assert.match(el('#summary').textContent,/Card sales accounted for 40%/);
+apply('2026-01-02','2026-01-02');assert.equal(run('filteredRecords().length'),1);
+assert.match(el('#summary').textContent,/you recorded 1 day, with/);
+assert.equal(el('#sales').textContent,'$50.00');assert.equal(el('#chart-range').textContent,'2026-01-02');
+apply('2026-01-03','2026-01-01');assert.match(el('#filter-end').validation,/on or after/);assert.equal(run('filteredRecords().length'),1);
+apply('','2026-01-01');assert.equal(run('filteredRecords().length'),1);
+assert.equal(el('#closing').textContent,'$115.00');assert.equal(el('#expenses').textContent,'$5.00');assert.equal(el('#chart-range').textContent,'Through 2026-01-01');
+apply('2026-01-03','');assert.equal(run('filteredRecords().length'),1);
+assert.equal(el('#sales').textContent,'$70.00');assert.equal(el('#chart-range').textContent,'From 2026-01-03');
+el('#export').onclick();const csv=await blobs.at(-1).text();assert.match(csv,/2026-01-03/);assert.doesNotMatch(csv,/2026-01-01/);
+el('#backup').onclick();const backup=await blobs.at(-1).text();assert.equal(JSON.parse(backup).records.length,3);
+apply('2027-01-01','2027-01-02');assert.match(el('#rows').innerHTML,/No records match/);
+assert.equal(el('#sales').textContent,'$0.00');assert.equal(el('#expenses').textContent,'$0.00');assert.equal(el('#closing').textContent,'—');assert.equal(el('#days').textContent,0);assert.match(el('#chart').innerHTML,/No recorded days/);assert.match(el('#summary').textContent,/No records for 2027-01-01 to 2027-01-02/);
+el('#filter-clear').onclick();assert.equal(run('filteredRecords().length'),3);
+assert.equal(el('#sales').textContent,'$170.00');assert.equal(el('#chart-range').textContent,'All records');
+apply('2026-01-01','2026-01-01');
+await el('#restorefile').onchange({target:{files:[{size:backup.length,text:async()=>backup}],value:'backup'}});assert.equal(JSON.parse(stored).length,3);assert.match(el('#message').textContent,/successfully/);
+assert.equal(el('#sales').textContent,'$50.00');assert.equal(el('#closing').textContent,'$115.00');
+const before=stored;await el('#restorefile').onchange({target:{files:[{size:2,text:async()=>'{}'}],value:'invalid'}});assert.equal(stored,before);assert.match(alerts.at(-1),/not a supported/);
+approve=false;await el('#restorefile').onchange({target:{files:[{size:backup.length,text:async()=>backup}],value:'backup'}});assert.equal(stored,before);
+assert.throws(()=>run("validateBackup({version:1,records:[{date:'2026-02-30'}]})"),/invalid/);
+assert.deepEqual(fs.readFileSync('index (1).html'),fs.readFileSync('originals/index (1).html'));
+assert.ok(html.includes('id="backup"')&&html.includes('id="restore"'));
+run("records=[{date:'2026-01-01',opening:10000,cash:0,card:0,expenses:12000,withdrawals:500}];render();");
+assert.equal(el('#closing').textContent,'-$25.00');assert.match(el('#summary').textContent,/Card sales accounted for 0%/);assert.doesNotMatch(el('#chart').innerHTML,/NaN|Infinity/);
+approve=true;el('#filter-clear').onclick();
+for(const name of ['date','opening','cash','card','expenses','withdrawals','notes','actual'])el('#form').elements[name]={value:''};
+run("records=[{date:'2026-01-01',opening:10000,cash:2000,card:9000,expenses:500,withdrawals:1000,notes:'existing'},{date:'2026-01-02',opening:0,cash:0,card:0,expenses:0,withdrawals:0}];render();");
+const preserved=run('JSON.stringify(validateRecord(records.find(r=>r.date===\'2026-01-02\')))');
+for(const [value,status,difference] of [['105.00','Balanced',0],['100.00','Short by $5.00',-500],['110.00','Over by $5.00',500],['','Not counted',null],['0','Short by $105.00',-10500]]){
+ run("open('2026-01-01')");el('#form').elements.actual.value=value;run('estimate()');assert.ok(el('#estimate').textContent.endsWith(status));
+ await el('#form').onsubmit({preventDefault(){}});
+ assert.equal(run("cashStatus(records.find(r=>r.date==='2026-01-01'))"),status);
+ assert.equal(run("cashDifference(records.find(r=>r.date==='2026-01-01'))"),difference);
+ assert.equal(run("close(records.find(r=>r.date==='2026-01-01'))"),10500);
+ assert.ok(el('#rows').innerHTML.includes(status));
+ run("open('2026-01-01')");assert.equal(el('#form').elements.actual.value,value==='0'?'0.00':value);
+ assert.equal(run("JSON.stringify(records.find(r=>r.date==='2026-01-02'))"),preserved);
+}
+assert.equal(JSON.parse(stored).find(r=>r.date==='2026-01-01').actual,0);
+apply('2026-01-01','2026-01-01');el('#export').onclick();const countedCSV=await blobs.at(-1).text();assert.match(countedCSV,/Actual cash counted,Cash difference,Cash status/);assert.match(countedCSV,/105\.00,0\.00,-105\.00,Short by \$105\.00/);assert.doesNotMatch(countedCSV,/2026-01-02/);
+el('#backup').onclick();const countedBackup=await blobs.at(-1).text();assert.equal(JSON.parse(countedBackup).records.length,2);
+await el('#restorefile').onchange({target:{files:[{size:countedBackup.length,text:async()=>countedBackup}],value:'backup'}});
+assert.equal(run("records.find(r=>r.date==='2026-01-01').actual"),0);assert.ok(el('#rows').innerHTML.includes('Short by $105.00'));
+for(const value of ['-1','0.5',"'0'",'null','10000000001'])assert.throws(()=>run(`validateBackup({version:1,records:[{date:'2026-01-01',opening:0,cash:0,card:0,expenses:0,withdrawals:0,actual:${value}}]})`),/invalid amount/);
+await el('#restorefile').onchange({target:{files:[{size:backup.length,text:async()=>backup}],value:'old-backup'}});assert.equal(run("cashStatus(records.find(r=>r.date==='2026-01-01'))"),'Not counted');
+const pending=run('operation(()=>new Promise(resolve=>{globalThis.releaseOperation=resolve;}),"old session saved")');
+assert.equal(el('#add').disabled,true);
+await run('accountChanged(null)');
+context.releaseOperation();assert.equal(await pending,false);
+assert.equal(el('#add').disabled,false,'A session switch during a pending write must not leave controls disabled');
+assert.doesNotMatch(el('#message').textContent,/old session saved/);
+run('backend={emulator:false,signInGoogle:()=>new Promise((resolve,reject)=>{globalThis.rejectGoogle=reject;})};authForm.elements.password={value:"temporary password"};');
+const googlePending=el('#google-signin').onclick();
+assert.equal(el('#account-status').textContent,'Signing in with Google…');assert.equal(run('authBusy'),true);
+context.rejectGoogle({code:'auth/popup-closed-by-user'});await googlePending;
+assert.match(el('#auth-error').textContent,/was canceled/);assert.equal(run('authBusy'),false);
+assert.equal(el('#account-status').textContent,'Google sign-in did not complete.');
+run('backend.signInGoogle=async()=>{}');await el('#google-signin').onclick();
+assert.equal(el('#auth-form').elements.password.value,'');assert.equal(run('authBusy'),false);
+run('backend.repository=()=>({initialize:async()=>{throw {code:"permission-denied"};}})');
+await run('accountChanged({uid:"test-user",email:"private@example.test"})');
+assert.match(el('#auth-error').textContent,/Firestore denied access/);
+assert.match(el('#auth-error').textContent,/\(default\)/);assert.equal(el('#retry').hidden,false);
+assert.equal(el('#add').disabled,true);assert.equal(run('records.length'),0);
+assert.equal(el('#signout').hidden,false);
+await run('accountChanged(null)');assert.equal(el('#account-mode').textContent,'Fictional demo');
+console.log('Passed: Balanced, Short, Over, Not counted, entered zero, live preview, edit/save persistence, preserved records, counted CSV/backup round-trip, and older backup compatibility.');
+console.log('Passed: range-aware totals, labels, chronological chart, summary, cash balances, zero-sales/empty states, inclusive/single-day/open-ended/invalid/cleared ranges, filtered CSV, complete backup, restore round-trip/rejection/cancellation, escaped notes, and preserved latest original.');
+})().catch(e=>{console.error(e);process.exitCode=1});

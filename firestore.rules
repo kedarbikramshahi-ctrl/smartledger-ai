@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function amount(n) { return n is int && n >= 0 && n <= 10000000000; }
+    function calendarDate(value) {
+      let parts = value.split('-');
+      let year = int(parts[0]);
+      let month = int(parts[1]);
+      let day = int(parts[2]);
+      let leap = year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
+      let days = month == 2 ? (leap ? 29 : 28) : (month in [4, 6, 9, 11] ? 30 : 31);
+      return year >= 1 && year <= 9999 && month >= 1 && month <= 12 && day >= 1 && day <= days;
+    }
+    function recordValid(r, date) {
+      return r.keys().hasAll(['date', 'opening', 'cash', 'card', 'expenses', 'withdrawals'])
+        && r.keys().hasOnly(['date', 'opening', 'cash', 'card', 'expenses', 'withdrawals', 'actual', 'notes'])
+        && r.date is string && r.date == date
+        && r.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && calendarDate(r.date)
+        && amount(r.opening) && amount(r.cash) && amount(r.card) && amount(r.expenses) && amount(r.withdrawals)
+        && (!('actual' in r) || amount(r.actual))
+        && (!('notes' in r) || (r.notes is string && r.notes.matches('(?s)^.{0,300}$')));
+    }
+    match /users/{uid} {
+      allow read: if owner(uid);
+      allow create, update: if owner(uid)
+        && request.resource.data.keys().hasAll(['activeLedger', 'revision'])
+        && request.resource.data.keys().hasOnly(['activeLedger', 'revision'])
+        && request.resource.data.activeLedger is string
+        && request.resource.data.activeLedger.matches('^[a-zA-Z0-9_-]{1,64}$')
+        && request.resource.data.revision is int && request.resource.data.revision >= 0;
+      match /ledgers/{ledger}/records/{date} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && recordValid(request.resource.data, date);
+      }
+    }
+    // Everything outside an authenticated owner's profile/records is denied.
+  }
+}

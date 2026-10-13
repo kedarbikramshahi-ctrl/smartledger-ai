@@ -1,0 +1,74 @@
+import { test, expect } from '@playwright/test';
+const local=[{date:'2026-01-01',opening:10000,cash:2000,card:9000,expenses:500,withdrawals:1000,notes:'old local record'}];
+test('account, explicit import, reconciliation, filter, downloads and old-backup restore',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.addInitScript(records=>localStorage.setItem('smartledger-v1',JSON.stringify(records)),local);
+  await page.goto('/');
+  await expect(page.locator('#account-status')).toContainText('Signed out');
+  await expect(page.locator('#days')).toHaveText('7');
+  await page.locator('#show-signup').click();await expect(page.locator('#auth-form')).toBeHidden();
+  await page.locator('#signup-form input[name=email]').fill(`browser-${Date.now()}@example.test`);
+  await page.locator('#signup-form input[name=password]').fill('password-123');
+  await page.locator('#signup-form input[name=confirmation]').fill('different-password');
+  await page.locator('#signup').click();await expect(page.locator('#auth-error')).toHaveText('Passwords do not match.');
+  await page.locator('#signup-form input[name=confirmation]').fill('password-123');
+  await page.locator('#signup').click();
+  await expect(page.locator('#account-status')).toHaveText('Account created. Sign in to open your ledger.');
+  await expect(page.locator('#account-mode')).toHaveText('Fictional demo');
+  await expect(page.locator('#signup-form')).toBeHidden();await expect(page.locator('#auth-form')).toBeVisible();
+  await page.locator('#auth-form input[name=password]').fill('password-123');await page.locator('#signin').click();
+  await expect(page.locator('#account-status')).toContainText('Ledger loaded');
+  await expect(page.locator('#days')).toHaveText('0');
+  await page.locator('#preview-import').click();
+  await expect(page.locator('#import-preview-status')).toContainText('1 new dates');
+  await page.locator('#import-cancel').click();await expect(page.locator('#days')).toHaveText('0');
+  await page.locator('#preview-import').click();await page.locator('#import-confirm').click();
+  await expect(page.locator('#message')).toContainText('imported successfully');
+  expect(await page.evaluate(()=>localStorage.getItem('smartledger-v1'))).toBe(JSON.stringify(local));
+  await expect(page.locator('#rows')).toContainText('Not counted');
+  for(const [actual,status] of [['105','Balanced'],['100','Short by $5.00'],['110','Over by $5.00'],['','Not counted'],['0','Short by $105.00']]){
+    await page.locator('#rows [data-edit]').click();await page.locator('input[name=actual]').fill(actual);
+    await expect(page.locator('#estimate')).toContainText(status);
+    await page.locator('#form button[type=submit], #form footer button:not([type])').click();
+    await expect(page.locator('#message')).toHaveText('Daily record saved.');
+    await expect(page.locator('#rows')).toContainText(status);
+  }
+  await page.reload();await expect(page.locator('#account-status')).toContainText('Ledger loaded');await expect(page.locator('#rows')).toContainText('Short by $105.00');
+  await page.locator('#filter-start').fill('2026-01-01');await page.locator('#filter-end').fill('2026-01-01');await page.locator('#ledger-filter button[type=submit]').click();
+  await expect(page.locator('#sales')).toHaveText('$110.00');await expect(page.locator('#summary')).toContainText('1 day,');
+  const csvEvent=page.waitForEvent('download');await page.locator('#export').click();expect((await csvEvent).suggestedFilename()).toBe('smartledger-records.csv');
+  const backupEvent=page.waitForEvent('download');await page.locator('#backup').click();expect((await backupEvent).suggestedFilename()).toMatch(/smartledger-backup/);
+  await page.locator('#preview-import').click();await expect(page.locator('#import-preview-status')).toContainText('0 new dates');await expect(page.locator('#import-confirm')).toBeDisabled();await page.locator('#import-cancel').click();
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('#restorefile').setInputFiles({name:'older.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({version:1,records:local}))});
+  await expect(page.locator('#message')).toHaveText('Backup restored successfully.');await expect(page.locator('#rows')).toContainText('Not counted');
+  await page.locator('#signout').click();await expect(page.locator('#account-status')).toContainText('Signed out');await expect(page.locator('#days')).toHaveText('7');
+  await expect(page.locator('#import-panel')).toBeHidden();expect(errors).toEqual([]);
+});
+test('wrong credentials show an error and re-enable the form',async({page})=>{
+  await page.goto('/');await expect(page.locator('#account-status')).toContainText('Signed out');
+  await page.locator('#auth-form input[name=email]').fill('missing@example.test');await page.locator('#auth-form input[name=password]').fill('wrong-password');await page.locator('#signin').click();
+  await expect(page.locator('#auth-error')).toContainText('Email or password is incorrect');await expect(page.locator('#signin')).toBeEnabled();
+});
+test('Google popup sign-in loads a private ledger without email/password fields',async({page})=>{
+  await page.goto('/');await expect(page.locator('#account-status')).toContainText('Signed out');
+  const popupEvent=page.waitForEvent('popup');await page.locator('#google-signin').click();const popup=await popupEvent;
+  await expect(popup).toHaveURL(/127\.0\.0\.1:9199\/emulator\/auth\/handler/);
+  await popup.locator('#add-account-button').click();
+  await popup.locator('#email-input').fill(`google-${Date.now()}@example.test`);
+  await popup.locator('#display-name-input').fill('Google emulator user');
+  await popup.locator('#sign-in').click();
+  await expect(page.locator('#account-status')).toContainText('Ledger loaded');
+  await expect(page.locator('#days')).toHaveText('0');await expect(page.locator('#auth-form')).toBeHidden();
+  await page.reload();await expect(page.locator('#account-status')).toContainText('Ledger loaded');
+  await page.locator('#signout').click();await expect(page.locator('#account-status')).toContainText('Signed out');
+});
+test('desktop and mobile demo keep the responsive dashboard layout',async({page},testInfo)=>{
+  await page.goto('/');await expect(page.locator('#account-status')).toContainText('Signed out');
+  await expect(page.locator('.summary')).toContainText('Calculated summary.');
+  await page.screenshot({path:testInfo.outputPath('desktop.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('#signin')).toBeVisible();await expect(page.locator('#add')).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath('mobile.png'),fullPage:true});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});
