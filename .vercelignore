@@ -1,0 +1,17 @@
+.git/
+.vercel/
+.env*
+node_modules/
+dist/
+.tools/
+.publish/
+.firebase/
+.emulator-data/
+*-debug.log
+test-results/
+playwright-report/
+originals/
+index (1).html
+DevPlan/
+tests/
+test-ledger.cjs
