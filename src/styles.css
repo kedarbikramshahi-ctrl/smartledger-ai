@@ -58,6 +58,10 @@ h1{font-size:27px}
 .ledger-filter{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:16px 0}
 .account-panel{margin-bottom:22px}
 .auth-switch{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.summary-divider{border:0;border-top:1px solid #cdd8cf;margin:22px 0}
+#ai-language{font:inherit;width:100%;padding:10px;border:1px solid #cdd8cf;border-radius:7px;margin:7px 0 12px;background:white}
+#ai-output{white-space:pre-wrap}
+#ai-coverage{display:block;color:#63736d;line-height:1.6}
 .grid>.panel,.cards>.card{min-width:0}
 @media(max-width:450px){.amount{font-size:22px}.ledger-filter label{max-width:100%}}
 #import-panel{margin-bottom:22px}

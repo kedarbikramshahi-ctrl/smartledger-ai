@@ -1,6 +1,6 @@
 # SmartLedger AI
 
-SmartLedger uses HTML5, CSS and vanilla JavaScript, bundled with Vite. Email/password accounts use Firebase Authentication and private ledgers use Cloud Firestore. The summary is a **Calculated summary**; there is no AI service or AI API key.
+SmartLedger uses HTML5, CSS and vanilla JavaScript, bundled with Vite. Email/password accounts use Firebase Authentication and private ledgers use Cloud Firestore. The **Calculated summary** remains available. An optional authenticated **AI summary** endpoint is implemented locally; a real model call and production AI deployment still need verification. See [AI setup](docs/ai-summaries.md).
 
 **Create account** opens a separate registration form with email, password and password confirmation. Successful registration returns to the Sign in form; it does not open the ledger automatically. **Sign in** opens an existing account's ledger using email/password or Google. Registration uses a temporary memory-only Firebase Auth instance to avoid Firebase's normal automatic sign-in of newly created users; the main account session stays signed out until you sign in explicitly.
 

@@ -35,6 +35,13 @@ export function createBackend(env = import.meta.env, hostname = location.hostnam
       return signInWithPopup(auth, provider);
     },
     signOut: () => signOut(auth),
+    async generateSummary(range,signal){
+      if(!auth.currentUser)throw Error('Sign in to generate a summary.');
+      const token=await auth.currentUser.getIdToken();
+      const response=await fetch('/api/summary',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(range),signal});
+      let result;try{result=await response.json();}catch{throw Error('Summary endpoint is unavailable. Start the app with its API server.');}
+      if(!response.ok)throw Error(result.error||'AI summary generation failed.');return result;
+    },
     repository: uid => createRepository(db, uid),
   };
 }

@@ -6,6 +6,8 @@ test('account, explicit import, reconciliation, filter, downloads and old-backup
   await page.goto('/');
   await expect(page.locator('#account-status')).toContainText('Signed out');
   await expect(page.locator('#days')).toHaveText('7');
+  await expect(page.locator('#generate-summary')).toBeDisabled();
+  await expect(page.locator('#ai-status')).toContainText('Sign in');
   await page.locator('#show-signup').click();await expect(page.locator('#auth-form')).toBeHidden();
   await page.locator('#signup-form input[name=email]').fill(`browser-${Date.now()}@example.test`);
   await page.locator('#signup-form input[name=password]').fill('password-123');
@@ -19,6 +21,8 @@ test('account, explicit import, reconciliation, filter, downloads and old-backup
   await page.locator('#auth-form input[name=password]').fill('password-123');await page.locator('#signin').click();
   await expect(page.locator('#account-status')).toContainText('Ledger loaded');
   await expect(page.locator('#days')).toHaveText('0');
+  await expect(page.locator('#generate-summary')).toBeDisabled();
+  await expect(page.locator('#ai-status')).toContainText('cloud sign-in');
   await page.locator('#preview-import').click();
   await expect(page.locator('#import-preview-status')).toContainText('1 new dates');
   await page.locator('#import-cancel').click();await expect(page.locator('#days')).toHaveText('0');

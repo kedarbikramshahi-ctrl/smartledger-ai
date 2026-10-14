@@ -1,6 +1,7 @@
 import { MONEY_FIELDS, DEMO_KEY, money, iso, close, cashStatus, escapeText, sample, validateRecord, validateBackup, parseCents, importPlan, readLegacy, toCSV } from './ledger.js';
 import { renderDashboard } from './dashboard.js';
 import { createBackend } from './firebase.js';
+import { createAiSummaryUI } from './ai-summary.js';
 
 const $ = selector => document.querySelector(selector);
 const form = $('#form'), dialog = $('#dialog'), authForm = $('#auth-form'), signupForm = $('#signup-form');
@@ -9,6 +10,7 @@ let records = [], dateRange = { start: '', end: '' }, editing = null;
 let backend = null, user = null, repository = null, version = null;
 let ready = false, busy = false, authBusy = false, session = 0, stopRecords = () => {}, pendingImport = null;
 let connectionTimer;
+let aiUI=null;
 
 function loadDemo() {
   try {
@@ -16,7 +18,7 @@ function loadDemo() {
     return stored === null ? sample() : validateBackup({ version: 1, records: JSON.parse(stored) });
   } catch { $('#message').textContent = 'Demo storage could not be read. Showing fictional samples; your original local records are untouched.'; return sample(); }
 }
-function render() { renderDashboard(records, dateRange); }
+function render() { renderDashboard(records, dateRange); aiUI?.refresh(); }
 function filteredRecords() { return records.filter(r => (!dateRange.start || r.date >= dateRange.start) && (!dateRange.end || r.date <= dateRange.end)); }
 function controls() {
   for (const id of ['#add', '#restore', '#reset', '#preview-import', '#import-confirm', '#backup', '#export']) $(id).disabled = busy || !ready;
@@ -36,6 +38,7 @@ function controls() {
   $('#auth-switch').hidden = !!user;
   authForm.hidden = !!user || authMode !== 'signin';
   signupForm.hidden = !!user || authMode !== 'signup';
+  aiUI?.refresh();
 }
 function showError(error) {
   const messages = {
@@ -309,6 +312,7 @@ $('#import-confirm').onclick = async () => {
 };
 
 let configurationError;
+aiUI=createAiSummaryUI({context:()=>({uid:user?.uid||null,version,range:dateRange,ready,busy,empty:filteredRecords().length===0,emulator:!!backend?.emulator}),request:(range,signal)=>backend.generateSummary(range,signal)});
 try { backend = createBackend(); }
 catch (error) { configurationError = error; }
 if (backend) { controls(); backend.onAuth(accountChanged); }

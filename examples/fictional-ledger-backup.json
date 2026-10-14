@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "records": [
+    { "date": "2026-10-07", "opening": 20000, "cash": 42000, "card": 61200, "expenses": 8000, "withdrawals": 25000, "actual": 29000, "notes": "FICTIONAL PRACTICE DATA: Regular weekday; drawer balanced." },
+    { "date": "2026-10-08", "opening": 20000, "cash": 38500, "card": 57000, "expenses": 6500, "withdrawals": 25000, "actual": 26500, "notes": "FICTIONAL PRACTICE DATA: Supplier payment; drawer short by $5." },
+    { "date": "2026-10-09", "opening": 20000, "cash": 51200, "card": 68400, "expenses": 12000, "withdrawals": 25000, "actual": 35000, "notes": "FICTIONAL PRACTICE DATA: Busy afternoon; drawer over by $8." },
+    { "date": "2026-10-10", "opening": 20000, "cash": 46800, "card": 64000, "expenses": 7600, "withdrawals": 25000, "notes": "FICTIONAL PRACTICE DATA: Weekend trade; actual cash not counted." },
+    { "date": "2026-10-11", "opening": 20000, "cash": 59000, "card": 78000, "expenses": 9300, "withdrawals": 25000, "actual": 44700, "notes": "FICTIONAL PRACTICE DATA: Strong Sunday sales; drawer balanced." },
+    { "date": "2026-10-12", "opening": 20000, "cash": 72600, "card": 92000, "expenses": 15000, "withdrawals": 25000, "actual": 51200, "notes": "FICTIONAL PRACTICE DATA: Highest sales day; drawer short by $14." },
+    { "date": "2026-10-13", "opening": 20000, "cash": 63500, "card": 81500, "expenses": 10800, "withdrawals": 72700, "actual": 0, "notes": "FICTIONAL PRACTICE DATA: Cash removed for banking; entered zero is a valid balanced count." }
+  ]
+}

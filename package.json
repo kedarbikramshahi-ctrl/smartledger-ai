@@ -3,19 +3,27 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.12.0" },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "dev:emulator": "vite --host 127.0.0.1 --mode emulator",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node test-ledger.cjs && node --test tests/unit.test.js",
+    "test": "node test-ledger.cjs && node --test tests/unit.test.js tests/summary.test.js",
     "test:integration": "node --test --test-concurrency=1 tests/emulator.test.js && playwright test",
     "test:emulators": "node scripts/emulators.cjs exec",
+    "test:ai-live": "node scripts/test-ai-live.js",
     "emulators": "node scripts/emulators.cjs start"
   },
-  "dependencies": { "firebase": "^12.0.0" },
-  "overrides": { "@grpc/grpc-js": "^1.14.6" },
+  "dependencies": {
+    "firebase": "^12.0.0",
+    "jose": "^6.2.12"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.6"
+  },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",
     "@playwright/test": "^1.56.0",
