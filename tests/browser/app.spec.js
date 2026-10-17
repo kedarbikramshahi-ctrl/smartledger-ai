@@ -55,9 +55,13 @@ test('wrong credentials show an error and re-enable the form',async({page})=>{
   await expect(page.locator('#auth-error')).toContainText('Email or password is incorrect');await expect(page.locator('#signin')).toBeEnabled();
 });
 test('Google popup sign-in loads a private ledger without email/password fields',async({page})=>{
+  // The emulator's optional CDN assets can block its inline event handlers.
+  // Its widget supports running without Material Components; keep this local test offline.
+  await page.context().route(/^https:\/\/(unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\//,route=>route.abort());
   await page.goto('/');await expect(page.locator('#account-status')).toContainText('Signed out');
   const popupEvent=page.waitForEvent('popup');await page.locator('#google-signin').click();const popup=await popupEvent;
   await expect(popup).toHaveURL(/127\.0\.0\.1:9199\/emulator\/auth\/handler/);
+  await popup.waitForLoadState('domcontentloaded');
   await popup.locator('#add-account-button').click();
   await popup.locator('#email-input').fill(`google-${Date.now()}@example.test`);
   await popup.locator('#display-name-input').fill('Google emulator user');

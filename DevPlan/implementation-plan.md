@@ -239,6 +239,18 @@ The app keeps its Calculated summary and adds click-to-generate AI output with E
 
 Desktop/mobile checks, GitHub publication and Vercel production deployment are complete. Live smoke testing confirmed HTTP 200, Firebase initialization, enabled sign-in controls, separate registration and zero JavaScript errors. The live URL is https://smartledger-ai-psi.vercel.app. Full live ledger behavior/isolation and production Google authorization remain to verify. A two-minute fictional-data demonstration has not been prepared.
 
+## Ask your ledger — October 17, 2026
+
+Implementation plan (read-only; no commit, push or deployment):
+
+A. Inspect instructions, plan, summary endpoint, UI, tests and settings. No AGENTS.md found in project or immediate parents. No store timezone exists.
+B. Add a strict allowlist of metrics and relative periods, timezone-aware calendar boundaries, integer-cent facts, coverage and cash-count evidence. Weeks start Monday; comparisons use equivalent elapsed weekdays.
+C. Reuse Firebase JWT verification, owner-scoped Firestore projection, OpenAI Responses structured outputs and shared cache/limits. Charge a generation allowance before interpretation; validate interpretation and explanation. Configure STORE_TIMEZONE, falling back explicitly to America/New_York.
+D. Add an accessible responsive question form, suggestions, language selection, evidence and stale-result cancellation on account/data/input changes.
+E. Test calculations, endpoint isolation/failures/limits, bilingual mocked output, browser behavior and existing regressions; run production build and document actual results separately from live AI verification.
+
+Status: A–E complete for local implementation and verification. `npm.cmd test` passed 30 tests plus retained ledger regressions. `npm.cmd run test:emulators` passed 2 Auth/Firestore integration tests and 5 Chrome tests in the final run. The existing Google popup test initially timed out on optional CDN assets; it now blocks those assets and waits for emulator widget initialization. Production build passed with the existing Firebase bundle-size warning. Desktop and 390px mobile Ask screenshots were inspected. AI services and browser answer requests are mocked; signed JWT cryptography and emulator ownership rules are tested independently. No real OpenAI call, cloud endpoint verification, commit, push or deployment was performed. See `docs/ask-your-ledger.md` for configuration, limits and preview instructions.
+
 ## Later improvements
 
 - Nepali interface and summaries.

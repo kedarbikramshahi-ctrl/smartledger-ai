@@ -2,6 +2,7 @@ import { MONEY_FIELDS, DEMO_KEY, money, iso, close, cashStatus, escapeText, samp
 import { renderDashboard } from './dashboard.js';
 import { createBackend } from './firebase.js';
 import { createAiSummaryUI } from './ai-summary.js';
+import { createAskLedgerUI } from './ask-ledger.js';
 
 const $ = selector => document.querySelector(selector);
 const form = $('#form'), dialog = $('#dialog'), authForm = $('#auth-form'), signupForm = $('#signup-form');
@@ -11,6 +12,7 @@ let backend = null, user = null, repository = null, version = null;
 let ready = false, busy = false, authBusy = false, session = 0, stopRecords = () => {}, pendingImport = null;
 let connectionTimer;
 let aiUI=null;
+let askUI=null;
 
 function loadDemo() {
   try {
@@ -18,7 +20,7 @@ function loadDemo() {
     return stored === null ? sample() : validateBackup({ version: 1, records: JSON.parse(stored) });
   } catch { $('#message').textContent = 'Demo storage could not be read. Showing fictional samples; your original local records are untouched.'; return sample(); }
 }
-function render() { renderDashboard(records, dateRange); aiUI?.refresh(); }
+function render() { renderDashboard(records, dateRange); aiUI?.refresh(); askUI?.refresh(); }
 function filteredRecords() { return records.filter(r => (!dateRange.start || r.date >= dateRange.start) && (!dateRange.end || r.date <= dateRange.end)); }
 function controls() {
   for (const id of ['#add', '#restore', '#reset', '#preview-import', '#import-confirm', '#backup', '#export']) $(id).disabled = busy || !ready;
@@ -39,6 +41,7 @@ function controls() {
   authForm.hidden = !!user || authMode !== 'signin';
   signupForm.hidden = !!user || authMode !== 'signup';
   aiUI?.refresh();
+  askUI?.refresh();
 }
 function showError(error) {
   const messages = {
@@ -312,6 +315,7 @@ $('#import-confirm').onclick = async () => {
 };
 
 let configurationError;
+askUI=createAskLedgerUI({context:()=>({uid:user?.uid||null,version,ready,busy,empty:records.length===0,emulator:!!backend?.emulator}),request:(question,signal)=>backend.askLedger(question,signal)});
 aiUI=createAiSummaryUI({context:()=>({uid:user?.uid||null,version,range:dateRange,ready,busy,empty:filteredRecords().length===0,emulator:!!backend?.emulator}),request:(range,signal)=>backend.generateSummary(range,signal)});
 try { backend = createBackend(); }
 catch (error) { configurationError = error; }

@@ -124,6 +124,30 @@
 <small id="ai-coverage"></small>
 </section>
 </div>
+<section class="panel ask-panel" aria-labelledby="ask-title">
+<h2 id="ask-title">Ask your ledger</h2>
+<p>Ask one question in English or Nepali about your saved records. This is read-only. Dates come from the question, independently of the dashboard filter. Do not include personal details.</p>
+<form id="ask-form">
+<label for="ask-question">Your question</label>
+<textarea id="ask-question" name="question" rows="3" maxlength="500" required aria-describedby="ask-help"></textarea>
+<small id="ask-help">Up to 500 characters. Supported periods: all records, this week, last week, this month. Weeks begin Monday.</small>
+<div class="ask-actions">
+<label for="ask-language">Answer language<select id="ask-language"><option value="en">English</option><option value="ne">नेपाली</option></select></label>
+<button class="btn" type="submit" id="ask-submit" disabled>Ask</button>
+</div>
+</form>
+<div class="ask-suggestions" aria-label="Suggested ledger questions">
+<button class="btn secondary" type="button" data-ledger-question="What were my total sales last week?">Last week's sales</button>
+<button class="btn secondary" type="button" data-ledger-question="Compare this week’s sales with last week.">Compare weeks</button>
+<button class="btn secondary" type="button" data-ledger-question="Which recorded day had the highest sales?">Highest sales day</button>
+<button class="btn secondary" type="button" data-ledger-question="Which days had cash shortages or overages?">Cash differences</button>
+<button class="btn secondary" type="button" data-ledger-question="What percentage of my sales came from card payments?">Card share</button>
+<button class="btn secondary" type="button" data-ledger-question="How much did I record in cash expenses this month?">This month's expenses</button>
+</div>
+<p id="ask-status" role="status" aria-live="polite"></p>
+<p id="ask-answer" class="ask-answer"></p>
+<pre id="ask-evidence" class="ask-evidence" tabindex="0" aria-label="Calculated evidence"></pre>
+</section>
 <section class="panel tablepanel">
 <div class="tablehead">
 <h2>Daily ledger</h2>

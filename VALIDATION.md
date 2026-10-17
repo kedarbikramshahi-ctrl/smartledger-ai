@@ -1,5 +1,18 @@
 # Local validation — October 13, 2026
 
+## Ask your ledger — October 17, 2026
+
+- `npm.cmd test`: retained simulated-DOM ledger regressions and all 30 unit/API tests pass (19 Ask tests, 8 summary tests, 3 ledger unit tests), including Nepali UTF-8 split across request chunks.
+- `npm.cmd run test:emulators`: 2 real Auth/Firestore emulator integration tests and 5 Chrome browser tests pass, including the new mobile/keyboard Ask UI test with mocked requests.
+- Intermediate reruns hit a Google emulator popup timeout: optional CDN scripts delayed attaching click handlers. The existing Google test now blocks those optional assets and waits for DOM initialization. Its final rerun passed in 1.9 seconds; application authentication code was unchanged.
+- `npm.cmd run build`: production build passes; the Firebase bundle still exceeds Vite's 500 kB warning threshold.
+- Desktop and 390px mobile screenshots of the Ask section were visually inspected. Question input, suggestions, language selection, answer and evidence fit within the panel. Evidence now uses readable labels rather than internal query identifiers.
+- Ask tests cover signed JWT rejection/ownership, cache isolation and invalidation, shared limits/leases, timezone/DST/week/year boundaries, incomplete coverage, cash counted as zero, ties, zero denominators, empty ledgers, bilingual fixtures, invalid/injected model output, upstream failures and stale UI replies. Existing tests cover Firestore owner-only projection, deny rules and record functionality.
+- AI classification and explanation use mocked OpenAI responses. Browser Ask tests use mocked signed-in context and responses; they do not verify cloud authentication or a live endpoint. No real OpenAI call, live Firebase endpoint check, production Redis validation or human bilingual model review was performed. No commit, push or deployment.
+- Build and emulator runs required execution outside the Windows sandbox: esbuild could not traverse a parent directory and Firebase CLI could not read its local configstore. Both checks passed with that access.
+
+See `docs/ask-your-ledger.md` for exact preview commands, required server configuration, supported periods and limitations. The earlier validation below remains historical.
+
 Firebase Web configuration is present and the standard auth domain matches the configured project (values were not displayed). The user reports successful live Google sign-in and manual email/password account creation. Cloud ledger persistence and two-user isolation have not been independently verified. No live Firebase security rules were changed by the agent. Publication was authorized separately after local preview.
 
 Verified locally:

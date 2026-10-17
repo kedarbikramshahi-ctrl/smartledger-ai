@@ -31,8 +31,12 @@ export function createRedisStore(env,fetcher=fetch,now=()=>Date.now()) {
     },release:(key,lock)=>command(['EVAL',"if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) end return 0",1,'sl:lock:'+key,lock]),
   };
 }
+const sharedStores=new WeakMap();
 export function createSummaryStore(env){
-  if(env.KV_REST_API_URL?.startsWith('https://')&&env.KV_REST_API_TOKEN)return createRedisStore(env);
-  if(env.NODE_ENV==='development'&&!env.VERCEL&&env.AI_USE_LOCAL_STORE==='true')return createMemoryStore();
+  if(sharedStores.has(env))return sharedStores.get(env);
+  let store;
+  if(env.KV_REST_API_URL?.startsWith('https://')&&env.KV_REST_API_TOKEN)store=createRedisStore(env);
+  else if(env.NODE_ENV==='development'&&!env.VERCEL&&env.AI_USE_LOCAL_STORE==='true')store=createMemoryStore();
+  if(store){sharedStores.set(env,store);return store;}
   throw new ServiceError(503,'AI summaries need a configured server cache. Your calculated summary is still available.');
 }

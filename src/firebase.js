@@ -43,5 +43,12 @@ export function createBackend(env = import.meta.env, hostname = location.hostnam
       if(!response.ok)throw Error(result.error||'AI summary generation failed.');return result;
     },
     repository: uid => createRepository(db, uid),
+    async askLedger(question,signal){
+      if(!auth.currentUser)throw Error('Sign in to ask your ledger.');
+      const token=await auth.currentUser.getIdToken();
+      const response=await fetch('/api/ask',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(question),signal});
+      let result;try{result=await response.json();}catch{throw Error('Ask endpoint is unavailable. Start the app with npm run dev.');}
+      if(!response.ok)throw Error(result.error||'Could not answer your question.');return result;
+    },
   };
 }

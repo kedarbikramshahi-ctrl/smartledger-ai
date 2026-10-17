@@ -10,6 +10,8 @@ If an account appears in Authentication but the app says **Firestore denied acce
 
 ## Project structure
 
+**Ask your ledger:** signed-in cloud users can ask read-only questions in English or Nepali about sales, week comparisons, highest recorded sales, counted cash differences, card share and cash expenses. The answer shows server-calculated evidence and record coverage. Configure the server-only `STORE_TIMEZONE` (fallback `America/New_York`). See [Ask your ledger setup and limitations](docs/ask-your-ledger.md). Model interpretation/explanation is implemented; automated AI tests use mocks, and real OpenAI verification is still required.
+
 - `index.html`: page structure and forms, retaining the existing green dashboard design.
 - `src/styles.css`: responsive layout and styles.
 - `src/ledger.js`: integer-cent calculations, validation, CSV, backups and import planning.
