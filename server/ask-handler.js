@@ -5,7 +5,7 @@ import { parseAskRequest, validateQuery, storeCalendar, askFacts, answerSentence
 import { ServiceError, createSummaryStore } from './summary-store.js';
 import { verifyFirebaseIdentity, loadCloudLedger } from './summary-services.js';
 import { interpretQuestion, explainFacts } from './ask-services.js';
-import { resolveComparison, comparisonFacts, validatePeriods, validateFields, relativePeriods } from './comparison.js';
+import { resolveComparison, comparisonFacts, validateDateRange, validatePeriods, validateFields, relativePeriods } from './comparison.js';
 import { comparisonSentences } from '../src/comparison-view.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 export function limitationAnswer(reason,language) {
@@ -35,6 +35,11 @@ export function createAskHandler(env,dependencies={}) {
       if(!env.OPENAI_API_KEY)throw new ServiceError(503,'Ask your ledger is not configured. The calculated dashboard remains available.');
       let calendar;try{calendar=storeCalendar(env.STORE_TIMEZONE||'America/New_York',dependencies.now?.()||new Date());}catch{throw new ServiceError(503,'The server store timezone is invalid.');}
       const followUp=isComparisonFollowUp(request.question);
+      let active=null;
+      if(request.questionContext){
+        const saved=await store.get('sl:question-context:'+owner+':'+request.questionContext);
+        if(saved)try{const c=JSON.parse(saved);if(c.timezone!==calendar.timezone||!['ledger','compare'].includes(c.kind))throw Error('Invalid context');active={kind:c.kind,periods:c.kind==='compare'?validatePeriods(c.periods,calendar.today):[validateDateRange(c.periods?.length===1?c.periods[0]:null,calendar.today)],fields:validateFields(c.fields)};}catch{/* Expired or invalid context cannot supply a topic. */}
+      }
       let confirmed=null;
       if(request.comparisonContext&&followUp){
         const saved=await store.get('sl:comparison-context:'+owner+':'+request.comparisonContext);
@@ -42,11 +47,11 @@ export function createAskHandler(env,dependencies={}) {
         try{const c=JSON.parse(saved);if(c.timezone!==calendar.timezone)throw Error('Timezone changed');confirmed={periods:validatePeriods(c.periods,calendar.today),fields:validateFields(c.fields)};}catch{return reply(200,{status:'clarify',language:request.language,answer:limitationAnswer('context',request.language),clearComparisonContext:true,timezone:calendar.timezone});}
       }
       const ledger=await(dependencies.loadLedger||loadCloudLedger)(uid,token,project,{});
-      key='sl:ask:'+owner+':'+hash(JSON.stringify({question:request.question,language:request.language,confirmed,version:ledger.version,calendar,model:env.OPENAI_MODEL||'gpt-6-luna',promptVersion:5}));
+      key='sl:ask:'+owner+':'+hash(JSON.stringify({question:request.question,language:request.language,confirmed,active,version:ledger.version,calendar,model:env.OPENAI_MODEL||'gpt-6-luna',promptVersion:6}));
       const cached=await store.get(key);if(cached)return reply(200,{...JSON.parse(cached),cached:true});
       // Covers both model stages, unsupported questions, failures and retries.
       lock=await store.acquire(owner,key);
-      let query;try{query=validateQuery(await(dependencies.interpret||interpretQuestion)(request.question,env,undefined,{today:calendar.today,timezone:calendar.timezone,relativePeriods:relativePeriods(calendar),comparison:confirmed}));}catch(error){if(error instanceof ServiceError)throw error;throw new ServiceError(502,'The interpreted question could not be verified. Try a suggested question.');}
+      let query;try{query=validateQuery(await(dependencies.interpret||interpretQuestion)(request.question,env,undefined,{today:calendar.today,timezone:calendar.timezone,relativePeriods:relativePeriods(calendar),comparison:confirmed,activeQuestion:active}));}catch(error){if(error instanceof ServiceError)throw error;throw new ServiceError(502,'The interpreted question could not be verified. Try a suggested question.');}
       if(query.metric==='compare'){
         try{query=resolveComparison(query,confirmed,calendar);}catch{query={metric:'clarify',period:'all',reason:'periods'};}
       }
@@ -71,6 +76,11 @@ export function createAskHandler(env,dependencies={}) {
         }
       }
       if(!followUp&&!result.comparisonContext)result.clearComparisonContext=true;
+      if(result.activeQuestion){
+        const reference=randomUUID();
+        await store.put('sl:question-context:'+owner+':'+reference,JSON.stringify({...result.activeQuestion,timezone:calendar.timezone}));
+        result.questionContext=reference;
+      }
       result={...result,cached:false,createdAt:new Date().toISOString()};
       await store.put(key,JSON.stringify(result));return reply(200,result);
     } catch(error) {

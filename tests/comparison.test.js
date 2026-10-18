@@ -243,7 +243,7 @@ test('standalone allowlist covers every field with flow sums and balance snapsho
 });
 test('standalone reconciliation distinguishes missing, zero, balanced and empty records',()=>{
   const zero=record('2026-10-10',{opening:0,cash:0,expenses:0,withdrawals:0,actual:0});
-  assert.match(standaloneSentences(standaloneFacts([zero],singleQuery(),calendar),'en').result,/drawer was balanced/);
+  assert.match(standaloneSentences(standaloneFacts([zero],singleQuery(),calendar),'en').result,/October 10 was balanced/);
   assert.match(standaloneSentences(standaloneFacts([{...zero,opening:100}],singleQuery(),calendar),'en').result,/short by \$1/);
   assert.match(standaloneSentences(standaloneFacts([],singleQuery(),calendar),'en').result,/No ledger record/);
 });
@@ -256,4 +256,50 @@ test('UI switches its active indicator to a standalone date and stops sending ol
   assert.match(el('#ask-context').textContent,/Active question: 2026-10-10/);assert.doesNotMatch(el('#ask-context').textContent,/2026-10-05|Follow-ups/);assert.equal(el('#ask-forget').hidden,true);
   await submit();assert.equal(requests[2].comparisonContext,undefined);
   c.uid='bob';ui.refresh();assert.equal(el('#ask-context').textContent,'');
+});
+
+test('full UI/API sequence: comparison, field follow-up, standalone reconciliation, then date-only follow-up (mocked AI)',async()=>{
+  const {el,doc}=fixture();let tick=0;const requests=[],contexts=[];
+  const dayPair=[{start:'2026-10-14',end:'2026-10-14'},{start:'2026-10-15',end:'2026-10-15'}];
+  const records=[record('2026-10-10',{opening:34200,cash:0,card:0,expenses:0,withdrawals:0}),record('2026-10-13',{opening:0,cash:0,card:0,expenses:0,withdrawals:0,actual:0}),record('2026-10-14'),record('2026-10-15')];
+  const h=handler({store:createMemoryStore(()=>tick),loadLedger:async()=>({records,version:1}),interpret:async(q,e,f,c)=>{
+    contexts.push(c);
+    if(q.startsWith('Compare'))return query(['total_sales'],dayPair);
+    if(q==='What about card sales on those same days?')return query(['card'],[],true);
+    if(q==='Was the cash drawer balanced on October 10, 2026?')return singleQuery();
+    assert.equal(q,'What about October 13?');
+    assert.deepEqual(c.activeQuestion,{kind:'ledger',periods:[{start:'2026-10-10',end:'2026-10-10'}],fields:['reconciliation']});
+    assert.equal(c.comparison,null);
+    return singleQuery(c.activeQuestion.fields,'2026-10-13');
+  }});
+  createAskLedgerUI({context:()=>({uid:'alice',ready:true,empty:false,version:1}),doc,request:async body=>{
+    requests.push(body);tick+=61000;
+    const res={setHeader(){},end(raw){this.body=JSON.parse(raw);}};
+    await h({method:'POST',headers:{authorization:'Bearer alice'},body},res);assert.equal(res.statusCode,200);return res.body;
+  }});
+  for(const q of ['Compare total sales on October 14 and October 15, 2026.','What about card sales on those same days?','Was the cash drawer balanced on October 10, 2026?','What about October 13?']){
+    el('#ask-question').value=q;el('#ask-question').input();await el('#ask-form').onsubmit({preventDefault(){}});
+  }
+  assert.equal(el('#ask-answer').textContent,'October 13 was balanced. Expected closing cash and actual cash counted were both $0.');
+  assert.match(el('#ask-context').textContent,/Active question: 2026-10-13/);assert.doesNotMatch(el('#ask-context').textContent,/2026-10-10|2026-10-14|Follow-ups/);
+  assert.equal(requests[3].comparisonContext,undefined);assert.ok(requests[3].questionContext);assert.deepEqual(contexts[1].comparison.periods,dayPair);
+  assert.match(el('#ask-evidence').textContent,/counted \$0.00/);
+});
+
+test('question-topic references are validated, owner-isolated and expire',async()=>{
+  assert.throws(()=>parseAskRequest({question:'What about October 13?',language:'en',questionContext:{fields:['reconciliation']}}));
+  let tick=0,active;const h=handler({store:createMemoryStore(()=>tick),interpret:async(q,e,f,c)=>{active=c.activeQuestion;return q==='start'?singleQuery():{metric:'clarify',period:'all',reason:'fields'};}});
+  const first=await invoke(h,'start');assert.ok(first.body.questionContext);
+  async function ask(uid){const res={setHeader(){},end(raw){this.body=JSON.parse(raw);}};await h({method:'POST',headers:{authorization:'Bearer '+uid},body:{question:'What about October 13?',language:'en',questionContext:first.body.questionContext}},res);return res;}
+  await ask('bob');assert.equal(active,null);
+  tick+=86400001;await ask('alice');assert.equal(active,null);
+});
+
+test('date-only English/Nepali model protocol supplies validated topic without notes (mocked OpenAI)',async()=>{
+  const activeQuestion={kind:'ledger',periods:[{start:'2026-10-10',end:'2026-10-10'}],fields:['reconciliation']};
+  for(const question of ['What about October 13?','अक्टोबर १३ मा चाहिँ?']){
+    let sent;const fetcher=async(url,options)=>{sent=JSON.parse(options.body);return {ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(singleQuery(['reconciliation'],'2026-10-13'))}]}]})};};
+    assert.deepEqual(validateQuery(await interpretQuestion(question,env,fetcher,{today:calendar.today,activeQuestion})),singleQuery(['reconciliation'],'2026-10-13'));
+    assert.deepEqual(JSON.parse(sent.input).lastConfirmedQuestion,activeQuestion);assert.match(sent.instructions,/date-only follow-up/);assert.match(sent.instructions,/ONE new period/);assert.doesNotMatch(sent.input,/notes|SECRET/);
+  }
 });

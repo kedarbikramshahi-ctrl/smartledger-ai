@@ -5,8 +5,10 @@ import { validateStandalone } from './standalone.js';
 export const METRICS = ['sales','compare_sales','highest_sales','cash_differences','card_share','cash_expenses','unsupported','clarify'];
 export const PERIODS = ['all','this_week','last_week','this_month'];
 export function parseAskRequest(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k=>!['question','language','comparisonContext'].includes(k)) || typeof body.question !== 'string' || !body.question.trim() || [...body.question].length > 500 || !['en','ne'].includes(body.language) || (body.comparisonContext!==undefined&&(typeof body.comparisonContext!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(body.comparisonContext)))) throw Error('Enter a question of at most 500 characters and choose English or Nepali.');
-  return {question:body.question.trim(),language:body.language,...(body.comparisonContext?{comparisonContext:body.comparisonContext}:{})};
+  const validReference=value=>value===undefined||(typeof value==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value));
+  if(!validReference(body?.questionContext))throw Error('Invalid question context.');
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k=>!['question','language','comparisonContext','questionContext'].includes(k)) || typeof body.question !== 'string' || !body.question.trim() || [...body.question].length > 500 || !['en','ne'].includes(body.language) || (body.comparisonContext!==undefined&&(typeof body.comparisonContext!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(body.comparisonContext)))) throw Error('Enter a question of at most 500 characters and choose English or Nepali.');
+  return {question:body.question.trim(),language:body.language,...(body.questionContext?{questionContext:body.questionContext}:{}),...(body.comparisonContext?{comparisonContext:body.comparisonContext}:{})};
 }
 export function validateQuery(query) {
   if(query?.metric==='ledger')return validateStandalone(query);

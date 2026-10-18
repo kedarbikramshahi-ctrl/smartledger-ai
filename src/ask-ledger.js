@@ -6,8 +6,8 @@ export function createAskLedgerUI({context,request,doc=globalThis.document}) {
   const form=doc.querySelector('#ask-form'),question=doc.querySelector('#ask-question'),language=doc.querySelector('#ask-language'),button=doc.querySelector('#ask-submit'),status=doc.querySelector('#ask-status'),output=doc.querySelector('#ask-answer'),evidence=doc.querySelector('#ask-evidence');
   const contextMessage=doc.querySelector('#ask-context'),forget=doc.querySelector('#ask-forget');
   const evidencePanel=doc.querySelector('#ask-evidence-panel'),evidenceTitle=doc.querySelector('#ask-evidence-title');
-  let key='',generation=0,controller,pending=false,owner=null,comparisonToken=null,confirmedComparison=null,activeQuestion=null;
-  function forgetComparison(){comparisonToken=null;confirmedComparison=null;activeQuestion=null;contextMessage.textContent='';forget.hidden=true;}
+  let key='',generation=0,controller,pending=false,owner=null,questionToken=null,comparisonToken=null,confirmedComparison=null,activeQuestion=null;
+  function forgetComparison(){questionToken=null;comparisonToken=null;confirmedComparison=null;activeQuestion=null;contextMessage.textContent='';forget.hidden=true;}
   function clear(){generation++;controller?.abort();pending=false;output.textContent='';evidence.textContent='';evidencePanel.hidden=true;evidencePanel.open=false;status.textContent='';}
   function refresh(){
     const c=context(),next=JSON.stringify([c.uid,c.version,c.ready,c.empty,question.value,language.value]);
@@ -15,7 +15,7 @@ export function createAskLedgerUI({context,request,doc=globalThis.document}) {
     if(next!==key){key=next;clear();}
     button.disabled=pending||!c.uid||!c.ready||c.busy||c.empty||c.emulator;
     form.setAttribute('aria-busy',String(pending));
-    contextMessage.textContent=pending?'':activeQuestion?.kind==='ledger'?(language.value==='ne'?'????? ??????: ':'Active question: ')+standaloneDescription(activeQuestion,language.value):confirmedComparison?(language.value==='ne'?'अर्को प्रश्नको तुलना: ':'Follow-ups use: ')+comparisonDescription(confirmedComparison,language.value)+(language.value==='ne'?'। सच्याउन दुवै मिति र विवरण फेरि लेख्नुहोस्।':'. To correct this, restate both dates and fields.'):'';
+    contextMessage.textContent=pending?'':activeQuestion?.kind==='ledger'?(language.value==='ne'?'हालको प्रश्न: ':'Active question: ')+standaloneDescription(activeQuestion,language.value):confirmedComparison?(language.value==='ne'?'अर्को प्रश्नको तुलना: ':'Follow-ups use: ')+comparisonDescription(confirmedComparison,language.value)+(language.value==='ne'?'। सच्याउन दुवै मिति र विवरण फेरि लेख्नुहोस्।':'. To correct this, restate both dates and fields.'):'';
     forget.hidden=!confirmedComparison;
     if(!c.uid)status.textContent='Sign in to ask about your saved ledger.';
     else if(c.emulator)status.textContent='Ask your ledger requires cloud sign-in; emulator accounts do not call AI.';
@@ -31,11 +31,12 @@ export function createAskLedgerUI({context,request,doc=globalThis.document}) {
     if([...question.value].length>500){status.textContent='Keep your question within 500 characters.';return;}
     const token=++generation;controller=new AbortController();pending=true;output.textContent='';evidence.textContent='';evidencePanel.hidden=true;evidencePanel.open=false;status.textContent='Reading your saved records and preparing an answer…';refresh();
     try {
-      const result=await request({question:question.value.trim(),language:language.value,...(comparisonToken?{comparisonContext:comparisonToken}:{})},controller.signal);
+      const result=await request({question:question.value.trim(),language:language.value,...(comparisonToken?{comparisonContext:comparisonToken}:{}),...(questionToken?{questionContext:questionToken}:{})},controller.signal);
       if(token!==generation)return;
       if(typeof result.answer!=='string'||!['answered','empty','unsupported','clarify'].includes(result.status))throw Error('The answer response was incomplete.');
       if(result.clearComparisonContext)forgetComparison();
       if(['answered','empty'].includes(result.status)&&typeof result.comparisonContext==='string'&&result.confirmedComparison?.periods?.length===2){comparisonToken=result.comparisonContext;confirmedComparison=result.confirmedComparison;}
+      questionToken=result.questionContext||null;
       activeQuestion=result.activeQuestion||null;
       output.textContent=result.answer;output.lang=result.language;
       status.textContent=result.status==='unsupported'?'This question is outside the supported ledger queries.':result.status==='clarify'?'Please clarify your question.':result.status==='empty'?'No records match this question.':result.cached?'Saved answer reused for the current ledger.':'Answer based on your saved records. Review the evidence below.';

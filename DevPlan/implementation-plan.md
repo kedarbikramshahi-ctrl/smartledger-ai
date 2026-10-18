@@ -301,3 +301,5 @@ For each completed phase, record:
 - Deployment status
 
 Standalone/context fix implemented: validated single-period queries reuse deterministic aggregations, explicit periods withhold historical context, genuine English/Nepali references retain it, and the interface replaces its indicator after standalone answers. Regression coverage includes the October 10 uncounted/$342 case, expired context, all fields, flow versus snapshot aggregation, zero counts, empty records, account changes and UI context clearing. No commit, push or deployment.
+
+Date-only follow-up fix: keep a separate opaque owner-bound reference to the last confirmed question (kind, validated dates and fields only). A new date replaces the period while retaining the prior topic if no new field is specified; a single-date question remains standalone. References expire after 24 hours and clear on account change/sign-out. Calculation rules and request limits are unchanged. Added full comparison -> card follow-up -> October 10 reconciliation -> October 13 date-only regression, including counted zero. No commit, push or deployment.
