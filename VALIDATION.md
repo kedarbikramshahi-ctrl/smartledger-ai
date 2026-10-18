@@ -1,5 +1,21 @@
 # Local validation — October 13, 2026
 
+## Reconciliation wording follow-up — October 18, 2026
+
+- All 51 unit/API tests plus retained ledger regressions pass. Five new focused tests cover the exact “short by $14 / balanced” sentence in English (and Nepali statuses), overages, absent counts versus Balanced, entered zero, missing ledger records, and 0/1/2 shortage day grammar. Assertions preserve expected cash, count coverage and separate shortage totals.
+- Production build passes with the existing bundle-size warning. This wording-only follow-up did not rerun browser tests; the three presentation browser tests below passed in the preceding presentation change.
+- `server/comparison.js` and `src/ledger.js` remain unchanged. Context, authentication, request limits and financial calculations are preserved; cache presentation version is 4. No real OpenAI call, commit, push or deployment was performed.
+
+## Comparison answer presentation — October 18, 2026
+
+- `npm.cmd test`: all 46 unit/API tests and retained simulated-DOM ledger regressions pass. New checks cover the exact $196 / 11.91% example, dates rather than A/B, reversed/cross-year periods, conditional missing-record warnings, mandatory result-first ordering, complete/partial-week coverage and unchanged facts.
+- `node node_modules/@playwright/test/cli.js test tests/browser/ask.spec.js tests/browser/comparison.spec.js`: all 3 focused Chrome tests pass. Tests verify collapsed Evidence, Enter-key expansion, preserved coverage, one answer node, no answer-paragraph duplication inside Evidence, repeated/cached responses, conditional warnings and existing bilingual/account-change behavior. Backend/model responses are mocked.
+- `npm.cmd run build`: passes; the existing bundle-size warning remains (about 592 kB minified). Mobile collapsed-answer and desktop expanded-Evidence screenshots were inspected.
+- Financial calculation modules `server/comparison.js` and `src/ledger.js` have no diff. The weekly presenter adapts existing facts without recalculating totals or percentages.
+- Root cause: the evidence formatter copied the same comparison sentences used to create the API answer. Conclusions and detailed evidence now have separate formatters. Related reconciliation fields share a single evidence group.
+- Full emulator invocation stalled before tests and was stopped; npm exec also stalled before launching Playwright. The installed Playwright CLI ran the three focused mocked-backend tests directly. Auth/Firestore integration was not reverified in this presentation-only run.
+- No real OpenAI call, commit, push or deployment was performed. Earlier validation below remains historical.
+
 ## Everyday custom comparisons — October 18, 2026
 
 - `npm.cmd test`: all 42 unit/API tests pass (12 custom comparison, 19 Ask, 8 summary, 3 ledger tests), plus the retained simulated-DOM ledger regression suite. Final tests include unavailable payment mix, missing versus zero counts and follow-up periods for empty comparisons.
@@ -42,3 +58,6 @@ Coverage includes cash/card separation, exact integer-cent input, Balanced/Short
 Vite reports a bundle-size warning for the Firebase SDK bundle (about 570 kB minified / 171 kB gzip). It does not prevent the build. Prior/incomplete Firestore ledger generations are retained privately and need an explicitly authorized cleanup process if storage growth becomes significant.
 
 Before publication, follow the checklist and cloud configuration steps in `README.md`. Emulator success does not establish that the real Firebase project, production security rules or Vercel environment settings work.
+
+Standalone/context regression verification (2026-10-18): npm test passed 57 unit/API tests plus the retained ledger DOM regressions. The October 14/15 comparison followed by October 10 reconciliation returns the exact uncounted/$342 fixture answer. AI interpretation and explanation were mocked; no real OpenAI call was verified. Production build passed with the existing >500 kB chunk warning.
+Focused browser verification: 3/3 Ask/comparison Playwright tests passed (mobile/keyboard, bilingual follow-ups, account switching, collapsed evidence). git diff --check passed. The new standalone context-switch regression runs against the DOM fixture in npm test. No real OpenAI call, commit, push or deployment was performed.

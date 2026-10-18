@@ -257,7 +257,17 @@ Plan: extend the existing Ask comparison path (no separate chatbot). Add allowli
 
 Status: implemented and locally verified. `npm.cmd test` passed 42 unit/API tests plus retained ledger regressions, including 12 custom comparison tests. Emulator integration passed 2 Auth/Firestore tests; Chrome passed all 6 browser tests, including custom comparison evidence, bilingual follow-ups and account clearing. Production build passed with the existing bundle-size warning (about 591 kB minified). Desktop and 390px mobile comparison screenshots were inspected. The first emulator launcher stalled before startup; an isolated ignored XDG_CONFIG_HOME under `.tools/firebase-test-config` was used for the successful run. Real OpenAI interpretation, bilingual human review and production context/cache behavior are not verified by these mocked AI tests. No commit, push or deployment was performed.
 
+## Comparison presentation — October 18, 2026
+
+Plan: keep calculation modules unchanged. Replace the A/B-led comparison narrative with date-led natural-language conclusions; separately format detailed operands, aggregation/snapshot dates, coverage and counted-date evidence. Remove the current evidence formatter's reuse of answer sentences, put evidence in a native collapsed details element, and condition the incomplete-record warning on actual missing days. Cover custom and existing weekly comparisons, bump the answer cache presentation version, and add formatting/DOM tests plus browser/build checks. No commit, push or deployment requested.
+
+Status: complete locally. The duplication came from comparisonEvidence copying comparisonSentences after the same sentences were already rendered as the server answer. Separate conclusion/evidence formatters now remove that duplication; reconciliation requested under both related fields is also grouped once. Prompt/cache presentation version is 3, and validated comparison explanations always begin with the result. Financial calculation files are unchanged. All 46 unit/API tests plus retained ledger regressions passed, 3 focused Chrome tests passed, and production build passed with the existing bundle warning. Mobile/desktop screenshots were inspected. The full emulator launcher stalled and was stopped before tests; focused mocked-backend browser checks ran via the installed Playwright CLI. No real OpenAI call, commit, push or deployment was performed.
+
 ## Later improvements
+
+Standalone-query/context fix plan: add a validated one-period ledger query for every supported numeric/status field, reuse the existing period aggregation, and prioritize explicit dates/new intent over comparison history. Only genuine follow-ups receive prior periods. Update active-question metadata/indicator, clear old comparison context after standalone answers, and add API/UI regressions for comparison → October 10 reconciliation and preserved follow-ups. Preserve ownership, quotas, integer cents, notes exclusion and read-only behavior. No commit, push or deployment.
+
+Reconciliation wording follow-up (October 18): two single-date comparisons now report each date's Short/Over/Balanced/Not counted status independently, with a separate missing-record message. Balanced requires an entered actual count equal to expected cash; entered zero remains valid. Longer periods use singular/plural shortage day wording. Added 5 focused tests; all 51 unit/API tests plus retained regressions and production build pass. Financial calculation files remain unchanged. Cache presentation version is 4 to avoid reusing prior wording. No real OpenAI call, commit, push or deployment was performed.
 
 - Nepali interface and summaries.
 - Detailed expense categories.
@@ -289,3 +299,5 @@ For each completed phase, record:
 - Browser verification
 - Remaining limitations
 - Deployment status
+
+Standalone/context fix implemented: validated single-period queries reuse deterministic aggregations, explicit periods withhold historical context, genuine English/Nepali references retain it, and the interface replaces its indicator after standalone answers. Regression coverage includes the October 10 uncounted/$342 case, expired context, all fields, flow versus snapshot aggregation, zero counts, empty records, account changes and UI context clearing. No commit, push or deployment.

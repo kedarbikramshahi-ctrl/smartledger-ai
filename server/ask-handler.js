@@ -1,3 +1,5 @@
+import { standaloneFacts, isComparisonFollowUp } from './standalone.js';
+import { standaloneSentences } from '../src/standalone-answer.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { parseAskRequest, validateQuery, storeCalendar, askFacts, answerSentences, validateExplanation } from './ask-facts.js';
 import { ServiceError, createSummaryStore } from './summary-store.js';
@@ -7,7 +9,7 @@ import { resolveComparison, comparisonFacts, validatePeriods, validateFields, re
 import { comparisonSentences } from '../src/comparison-view.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 export function limitationAnswer(reason,language) {
-  const messages={periods:['Which two dates or date ranges should I compare? Please include dates through today.','कुन दुई मिति वा अवधिको तुलना गर्ने? कृपया आजसम्मका मितिहरू दिनुहोस्।'],fields:['Which ledger fields would you like to compare?','लेजरका कुन विवरणहरू तुलना गर्ने?'],context:['Which two periods do you mean? Start a comparison with both date ranges.','कुन दुई अवधि भन्नुभएको हो? दुवै अवधि दिएर तुलना सुरु गर्नुहोस्।'],calendar:['Please specify unambiguous Gregorian dates, including the year if needed.','कृपया स्पष्ट ग्रेगोरियन मिति दिनुहोस्; आवश्यक भए वर्ष पनि लेख्नुहोस्।'],missing_data:['The ledger contains daily amounts and cash counts, not causes, profit, inventory, individual transactions or notes analysis.','लेजरमा दैनिक रकम र नगद गणना छन्; कारण, नाफा, मौज्दात, व्यक्तिगत कारोबार वा नोट विश्लेषण उपलब्ध छैन।'],unsupported:['I can compare saved ledger amounts and reconciliation. Record changes and unrelated requests are unsupported.','सुरक्षित लेजर रकम र नगद मिलान तुलना गर्न सकिन्छ। रेकर्ड परिवर्तन र असम्बन्धित अनुरोध समर्थित छैनन्।']};
+  const messages={periods:['Which date or date range do you mean? For a comparison, specify both periods through today.','कुन दुई मिति वा अवधिको तुलना गर्ने? कृपया आजसम्मका मितिहरू दिनुहोस्।'],fields:['Which ledger fields would you like to compare?','लेजरका कुन विवरणहरू तुलना गर्ने?'],context:['Which two periods do you mean? Start a comparison with both date ranges.','कुन दुई अवधि भन्नुभएको हो? दुवै अवधि दिएर तुलना सुरु गर्नुहोस्।'],calendar:['Please specify unambiguous Gregorian dates, including the year if needed.','कृपया स्पष्ट ग्रेगोरियन मिति दिनुहोस्; आवश्यक भए वर्ष पनि लेख्नुहोस्।'],missing_data:['The ledger contains daily amounts and cash counts, not causes, profit, inventory, individual transactions or notes analysis.','लेजरमा दैनिक रकम र नगद गणना छन्; कारण, नाफा, मौज्दात, व्यक्तिगत कारोबार वा नोट विश्लेषण उपलब्ध छैन।'],unsupported:['I can compare saved ledger amounts and reconciliation. Record changes and unrelated requests are unsupported.','सुरक्षित लेजर रकम र नगद मिलान तुलना गर्न सकिन्छ। रेकर्ड परिवर्तन र असम्बन्धित अनुरोध समर्थित छैनन्।']};
   return (messages[reason]||messages.periods)[language==='ne'?1:0];
 }
 export function createAskHandler(env,dependencies={}) {
@@ -32,14 +34,15 @@ export function createAskHandler(env,dependencies={}) {
       let request;try{request=parseAskRequest(body);}catch(error){throw new ServiceError(400,error.message);}
       if(!env.OPENAI_API_KEY)throw new ServiceError(503,'Ask your ledger is not configured. The calculated dashboard remains available.');
       let calendar;try{calendar=storeCalendar(env.STORE_TIMEZONE||'America/New_York',dependencies.now?.()||new Date());}catch{throw new ServiceError(503,'The server store timezone is invalid.');}
+      const followUp=isComparisonFollowUp(request.question);
       let confirmed=null;
-      if(request.comparisonContext){
+      if(request.comparisonContext&&followUp){
         const saved=await store.get('sl:comparison-context:'+owner+':'+request.comparisonContext);
         if(!saved)return reply(200,{status:'clarify',language:request.language,answer:limitationAnswer('context',request.language),clearComparisonContext:true,timezone:calendar.timezone});
         try{const c=JSON.parse(saved);if(c.timezone!==calendar.timezone)throw Error('Timezone changed');confirmed={periods:validatePeriods(c.periods,calendar.today),fields:validateFields(c.fields)};}catch{return reply(200,{status:'clarify',language:request.language,answer:limitationAnswer('context',request.language),clearComparisonContext:true,timezone:calendar.timezone});}
       }
       const ledger=await(dependencies.loadLedger||loadCloudLedger)(uid,token,project,{});
-      key='sl:ask:'+owner+':'+hash(JSON.stringify({question:request.question,language:request.language,confirmed,version:ledger.version,calendar,model:env.OPENAI_MODEL||'gpt-6-luna',promptVersion:2}));
+      key='sl:ask:'+owner+':'+hash(JSON.stringify({question:request.question,language:request.language,confirmed,version:ledger.version,calendar,model:env.OPENAI_MODEL||'gpt-6-luna',promptVersion:5}));
       const cached=await store.get(key);if(cached)return reply(200,{...JSON.parse(cached),cached:true});
       // Covers both model stages, unsupported questions, failures and retries.
       lock=await store.acquire(owner,key);
@@ -47,22 +50,27 @@ export function createAskHandler(env,dependencies={}) {
       if(query.metric==='compare'){
         try{query=resolveComparison(query,confirmed,calendar);}catch{query={metric:'clarify',period:'all',reason:'periods'};}
       }
+      if(query.metric==='ledger'&&query.period===null&&query.periods[0].end>calendar.today)query={metric:'clarify',period:'all',reason:'periods'};
       let result;
       if(['unsupported','clarify'].includes(query.metric)) {
         result={status:query.metric,language:request.language,answer:limitationAnswer(query.reason&&query.reason!=='none'?query.reason:(query.metric==='clarify'?'periods':'unsupported'),request.language),timezone:calendar.timezone};
       } else {
+        const standalone=query.metric==='ledger';
         const custom=query.metric==='compare';
-        const facts=custom?comparisonFacts(ledger.records,query,calendar):askFacts(ledger.records,query,calendar),sentences=custom?comparisonSentences(facts,request.language):answerSentences(facts,request.language);
+        const comparison=custom||query.metric==='compare_sales';
+        const facts=standalone?standaloneFacts(ledger.records,query,calendar):custom?comparisonFacts(ledger.records,query,calendar):askFacts(ledger.records,query,calendar),sentences=standalone?standaloneSentences(facts,request.language):comparison?comparisonSentences(facts,request.language):answerSentences(facts,request.language);
         let answer;
-        try{answer=validateExplanation(await(dependencies.explain||explainFacts)(facts,sentences,request.language,env),sentences);}catch(error){if(error instanceof ServiceError)throw error;throw new ServiceError(502,'The answer could not be verified. Try again later.');}
-        result={status:(custom?facts.periods.some(p=>p.recordedDays):facts.current.recordedDays)?'answered':'empty',language:request.language,answer,facts,timezone:calendar.timezone};
+        try{answer=validateExplanation(await(dependencies.explain||explainFacts)(facts,sentences,request.language,env),sentences,{leadWithResult:comparison||standalone});}catch(error){if(error instanceof ServiceError)throw error;throw new ServiceError(502,'The answer could not be verified. Try again later.');}
+        result={status:(standalone?facts.period.recordedDays:custom?facts.periods.some(p=>p.recordedDays):facts.current.recordedDays)?'answered':'empty',language:request.language,answer,facts,timezone:calendar.timezone};
+        if(standalone){result.activeQuestion={kind:'ledger',periods:facts.query.periods,fields:query.fields};result.clearComparisonContext=true;}
         if(custom||query.metric==='compare_sales'){
           const comparison=custom?{periods:query.periods,fields:query.fields}:{periods:[{start:facts.previous.start,end:facts.previous.end},{start:facts.current.start,end:facts.current.end}],fields:['total_sales']};
           const reference=randomUUID();
           await store.put('sl:comparison-context:'+owner+':'+reference,JSON.stringify({...comparison,timezone:calendar.timezone}));
-          result.comparisonContext=reference;result.confirmedComparison=comparison;
+          result.comparisonContext=reference;result.confirmedComparison=comparison;result.activeQuestion={kind:"compare",...comparison};
         }
       }
+      if(!followUp&&!result.comparisonContext)result.clearComparisonContext=true;
       result={...result,cached:false,createdAt:new Date().toISOString()};
       await store.put(key,JSON.stringify(result));return reply(200,result);
     } catch(error) {

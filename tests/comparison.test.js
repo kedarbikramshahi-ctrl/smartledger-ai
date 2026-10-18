@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { COMPARISON_FIELDS, BROAD_FIELDS, comparisonFacts, resolveComparison, relativePeriods } from '../server/comparison.js';
-import { validateQuery, parseAskRequest, storeCalendar, validateExplanation } from '../server/ask-facts.js';
+import { validateQuery, parseAskRequest, storeCalendar, validateExplanation, askFacts } from '../server/ask-facts.js';
 import { comparisonSentences, comparisonEvidence } from '../src/comparison-view.js';
 import { interpretQuestion } from '../server/ask-services.js';
 import { createAskHandler } from '../server/ask-handler.js';
@@ -54,15 +54,15 @@ test('shortages, overages and balanced days remain separate, with no misleading 
   assert.equal(b.reconciliation.balancedDays,1);assert.equal(b.reconciliation.shortageDays,1);assert.equal(b.reconciliation.totalShortageCents,1000);
   assert.equal(f.changes.reconciliation.shortageDaysChange,0);assert.equal(f.changes.reconciliation.shortageAmountChangeCents,-9500);
   assert.equal(f.changes.reconciliation.overageAmountChangeCents,-1000);
-  for(const lang of ['en','ne']){const s=comparisonSentences(f,lang);assert.equal(validateExplanation({sentences:Object.keys(s)},s),Object.values(s).join('\n\n'));assert.match(s.reconciliation,/\$105.00/);assert.match(s.reconciliation,/\$10.00/);}
+  for(const lang of ['en','ne']){const s=comparisonSentences(f,lang);assert.equal(validateExplanation({sentences:Object.keys(s)},s),Object.values(s).join('\n\n'));assert.match(s.result,/\$105/);assert.match(s.result,/\$10/);assert.equal(Object.keys(s).filter(k=>['cash_difference','reconciliation'].includes(k)).length,0);}
 });
 test('empty records and absent actual counts differ from recorded zero; zero baseline has no percentage',()=>{
   const zero=[record('2026-10-05',{cash:0,card:0}),record('2026-10-12',{actual:0})];
   const f=comparisonFacts(zero,query(['cash','actual','card_share','reconciliation']),calendar);
   assert.equal(f.changes.cash.changePercent,null);assert.equal(f.periods[0].values.actual.valueCents,null);assert.equal(f.periods[1].values.actual.valueCents,0);
   assert.equal(f.changes.actual.changeCents,null);assert.equal(f.periods[0].values.card_share.percent,null);assert.equal(f.changes.reconciliation.shortageDaysChange,null);
-  assert.match(comparisonSentences(f,'en').actual,/Not counted/);
-  const empty=comparisonFacts([],query(['cash','actual','card_share']),calendar);assert.equal(empty.periods[0].values.cash.valueCents,null);assert.equal(empty.changes.cash.changeCents,null);assert.equal(empty.periods[0].missingDays,7);assert.equal(empty.periods[0].values.card_share.cardCents,null);assert.equal(empty.periods[0].values.card_share.salesCents,null);assert.match(comparisonSentences(empty,'en').card_share,/No records/);
+  assert.match(comparisonSentences(f,'en').actual,/not counted/);
+  const empty=comparisonFacts([],query(['cash','actual','card_share']),calendar);assert.equal(empty.periods[0].values.cash.valueCents,null);assert.equal(empty.changes.cash.changeCents,null);assert.equal(empty.periods[0].missingDays,7);assert.equal(empty.periods[0].values.card_share.cardCents,null);assert.equal(empty.periods[0].values.card_share.salesCents,null);assert.match(comparisonSentences(empty,'en').card_share,/no recorded sales/);
 });
 test('day comparisons, explicit years, year boundaries and elapsed-week bounds preserve exact dates',()=>{
   const days=[{start:'2026-10-12',end:'2026-10-12'},{start:'2026-10-13',end:'2026-10-13'}];
@@ -130,7 +130,130 @@ test('UI sends only confirmed opaque reference, clears on account change/sign-ou
 });
 test('broad comparison stays short and covers sales, expenses, payment mix and reconciliation',()=>{
   const f=comparisonFacts(rows,query(BROAD_FIELDS),calendar),s=comparisonSentences(f,'en');
-  for(const field of BROAD_FIELDS)assert.ok(s[field]);
-  assert.match(s.coverage,/Missing days are not zero/);assert.ok(Object.values(s).join(' ').length<3500);
-  assert.match(s.card_share,/percentage points/);assert.match(s.reconciliation,/Shortages and overages are separate/);
+  assert.ok(s.result);for(const field of BROAD_FIELDS.slice(1))assert.ok(s[field]);
+  assert.match(s.coverage,/Missing days are not treated as zero/);assert.ok(Object.values(s).join(' ').length<3500);
+  assert.match(s.card_share,/percentage-point/);assert.match(s.reconciliation,/Shortages totaled/);assert.match(s.reconciliation,/overages totaled/);
+});
+
+test('date-led answer matches the requested sales example without repeating it in evidence or mutating facts',()=>{
+  const days=[{start:'2026-10-12',end:'2026-10-12'},{start:'2026-10-13',end:'2026-10-13'}];
+  const f=comparisonFacts([record('2026-10-12',{cash:164600,card:0}),record('2026-10-13',{cash:145000,card:0})],query(['total_sales'],days),calendar),before=structuredClone(f);
+  const s=comparisonSentences(f,'en'),evidence=comparisonEvidence(f,'en');
+  assert.equal(s.result,'October 12 had $196 more in sales than October 13. Sales decreased by 11.91%, from $1,646 to $1,450.');
+  assert.equal(s.coverage,undefined);assert.doesNotMatch(s.result,/\b[AB]\b/);assert.ok(!evidence.includes(s.result));
+  assert.match(evidence,/2026-10-12.*1\/1/);assert.match(evidence,/2026-10-13.*1\/1/);assert.doesNotMatch(evidence,/incomplete records|Missing days are not zero/i);
+  assert.deepEqual(f,before);
+});
+test('warning is conditional on missing records and explanation ordering always leads with the result',()=>{
+  const f=comparisonFacts(rows,query(['cash','card']),calendar),s=comparisonSentences(f,'en');
+  assert.match(s.coverage,/incomplete records/);
+  const reversed={sentences:Object.keys(s).reverse()};
+  const answer=validateExplanation(reversed,s,{leadWithResult:true});assert.ok(answer.startsWith(s.result));assert.ok(answer.endsWith(s.coverage));
+  const ne=comparisonSentences(f,'ne');assert.match(ne.result,/अक्टोबर/);assert.doesNotMatch(ne.result,/\b[AB]\b/);
+  assert.match(comparisonEvidence(f,'en'),/Recorded|recorded/);
+});
+test('existing weekly comparisons reuse calculated facts and retain exact coverage without an unnecessary warning',()=>{
+  const complete=Array.from({length:14},(_,i)=>record(`2026-10-${String(i+5).padStart(2,'0')}`,{cash:1000+i*100,card:0}));
+  const f=askFacts(complete,{metric:'compare_sales',period:'this_week'},calendar),before=structuredClone(f),s=comparisonSentences(f,'en');
+  assert.equal(s.coverage,undefined);assert.doesNotMatch(s.result,/\b[AB]\b|incomplete/);
+  assert.match(comparisonEvidence(f,'en'),/7\/7/);assert.deepEqual(f,before);
+  const midweek=storeCalendar('America/New_York',new Date('2026-10-14T16:00Z'));
+  const partial=askFacts(complete,{metric:'compare_sales',period:'this_week'},midweek);
+  assert.equal(comparisonSentences(partial,'en').coverage,undefined);assert.match(comparisonEvidence(partial,'en'),/equivalent elapsed weekdays/);
+});
+test('snapshot, reconciliation, reversed and cross-year comparisons keep dates instead of A/B in the main answer',()=>{
+  const f=comparisonFacts(rows,query(COMPARISON_FIELDS),calendar),s=comparisonSentences(f,'en');
+  assert.doesNotMatch(Object.values(s).join(' '),/\b[AB]\b/);assert.match(s.result,/First recorded opening balances/);
+  const reverse=comparisonFacts(rows,query(['cash'],[{start:'2026-10-13',end:'2026-10-13'},{start:'2026-10-12',end:'2026-10-12'}]),calendar);
+  assert.match(comparisonSentences(reverse,'en').result,/lower than for/);
+  const years=comparisonFacts([record('2025-10-12'),record('2026-10-12')],query(['cash'],[{start:'2025-10-12',end:'2025-10-12'},{start:'2026-10-12',end:'2026-10-12'}]),calendar);
+  assert.match(comparisonSentences(years,'en').result,/2025/);assert.match(comparisonSentences(years,'en').result,/2026/);
+});
+
+const dailyPeriods=[{start:'2026-10-12',end:'2026-10-12'},{start:'2026-10-13',end:'2026-10-13'}];
+const dailyCount=(date,actual)=>record(date,{opening:10000,cash:0,expenses:0,withdrawals:0,...(actual===undefined?{}:{actual})});
+test('single-day reconciliation states each actual status and amount instead of comparing shortage-day counts',()=>{
+  for(const field of ['reconciliation','cash_difference']){
+    const f=comparisonFacts([dailyCount('2026-10-12',8600),dailyCount('2026-10-13',10000)],query([field],dailyPeriods),calendar),before=structuredClone(f);
+    assert.equal(comparisonSentences(f,'en').result,'October 12 was short by $14. October 13 was balanced.');
+    assert.match(comparisonSentences(f,'ne').result,/\$14 कम थियो/);assert.match(comparisonSentences(f,'ne').result,/नगद मिलेको थियो/);
+    assert.deepEqual(f,before);assert.equal(f.periods[0].reconciliation.totalShortageCents,1400);assert.equal(f.periods[1].reconciliation.balancedDays,1);
+  }
+});
+test('an absent actual count is Not counted, never Balanced, and does not hide the other day status',()=>{
+  const f=comparisonFacts([dailyCount('2026-10-12',11400),dailyCount('2026-10-13')],query(['reconciliation'],dailyPeriods),calendar);
+  assert.equal(comparisonSentences(f,'en').result,'October 12 was over by $14. October 13 was not counted.');
+  assert.doesNotMatch(comparisonSentences(f,'en').result,/balanced/);assert.match(comparisonSentences(f,'ne').result,/नगद गनिएको थिएन/);
+  assert.equal(f.periods[1].reconciliation.balancedDays,0);assert.equal(f.periods[1].reconciliation.uncountedDays,1);
+  const none=comparisonFacts([dailyCount('2026-10-12'),dailyCount('2026-10-13')],query(['reconciliation'],dailyPeriods),calendar);
+  assert.equal(comparisonSentences(none,'en').result,'October 12 was not counted. October 13 was not counted.');
+});
+test('entered zero is balanced only against expected zero, otherwise it retains the correct shortage',()=>{
+  const f=comparisonFacts([record('2026-10-12',{opening:0,cash:0,expenses:0,withdrawals:0,actual:0}),dailyCount('2026-10-13',0)],query(['reconciliation'],dailyPeriods),calendar);
+  assert.equal(comparisonSentences(f,'en').result,'October 12 was balanced. October 13 was short by $100.');
+  assert.equal(f.periods[0].reconciliation.countedDays,1);assert.equal(f.periods[1].reconciliation.countedDays,1);
+});
+test('a missing daily ledger record is distinct from a present but uncounted entry',()=>{
+  const f=comparisonFacts([dailyCount('2026-10-13')],query(['reconciliation'],dailyPeriods),calendar);
+  assert.equal(comparisonSentences(f,'en').result,'October 12 has no ledger record. October 13 was not counted.');
+  assert.equal(f.periods[0].missingDays,1);assert.equal(f.periods[1].missingDays,0);
+});
+test('longer reconciliation periods use shortage day/days correctly for zero, one and multiple days',()=>{
+  const longer=[{start:'2026-10-05',end:'2026-10-06'},{start:'2026-10-12',end:'2026-10-13'}];
+  const data=[dailyCount('2026-10-05',8600),dailyCount('2026-10-06',10000),dailyCount('2026-10-12',8600),dailyCount('2026-10-13',8600)];
+  const f=comparisonFacts(data,query(['reconciliation'],longer),calendar),before=structuredClone(f),answer=comparisonSentences(f,'en').result;
+  assert.match(answer,/had 1 shortage day,/);assert.match(answer,/had 2 shortage days\./);assert.doesNotMatch(answer,/1 shortage days\b|2 shortage day\b/);
+  assert.equal(f.periods[0].reconciliation.totalShortageCents,1400);assert.equal(f.periods[1].reconciliation.totalShortageCents,2800);assert.deepEqual(f,before);
+  const zero=comparisonFacts(data.map(r=>({...r,actual:10000})),query(['reconciliation'],longer),calendar);
+  assert.match(comparisonSentences(zero,'en').result,/had 0 shortage days/);
+});
+import { standaloneFacts, isComparisonFollowUp } from '../server/standalone.js';
+import { standaloneSentences, standaloneEvidence } from '../src/standalone-answer.js';
+const singleQuery=(fields=['reconciliation'],date='2026-10-10')=>({metric:'ledger',period:null,periods:[{start:date,end:date}],fields,useContext:false,reason:'none'});
+test('comparison to explicit standalone ignores history and returns the uncounted October 10 answer',async()=>{
+  const seen=[];
+  const h=handler({loadLedger:async()=>({records:[record('2026-10-10',{opening:20000,cash:50000,expenses:10800,withdrawals:25000})],version:1}),interpret:async(q,e,f,c)=>{seen.push(c.comparison);return q.startsWith('Compare')?query(['total_sales'],[{start:'2026-10-14',end:'2026-10-14'},{start:'2026-10-15',end:'2026-10-15'}]):singleQuery();}});
+  const first=await invoke(h,'Compare total sales October 14 and October 15, 2026');
+  const next=await invoke(h,'Was the cash drawer balanced on October 10, 2026?',first.body.comparisonContext);
+  assert.equal(next.statusCode,200);assert.equal(seen[1],null);
+  assert.equal(next.body.answer,'Actual cash was not counted on October 10, so I cannot confirm whether the drawer was balanced. Expected closing cash was $342.');
+  assert.equal(next.body.clearComparisonContext,true);assert.equal(next.body.comparisonContext,undefined);
+  assert.deepEqual(next.body.activeQuestion,{kind:'ledger',periods:[{start:'2026-10-10',end:'2026-10-10'}],fields:['reconciliation']});
+});
+test('explicit standalone ignores expired context while genuine same-days follow-ups preserve it',async()=>{
+  let received;
+  const h=handler({interpret:async(q,e,f,c)=>{received=c.comparison;return q.startsWith('What about')?query(['card'],[],true):query();}});
+  const first=await invoke(h,'Compare October 5–11 with October 12–18');
+  const next=await invoke(h,'What about card sales on those same days?',first.body.comparisonContext);
+  assert.equal(next.statusCode,200);assert.deepEqual(received.periods,periods);assert.deepEqual(next.body.facts.query.fields,['card']);
+  const standalone=await invoke(handler({interpret:async()=>singleQuery()}),'Was the drawer balanced October 10, 2026?','00000000-0000-4000-8000-000000000000');
+  assert.equal(standalone.statusCode,200);assert.notEqual(standalone.body.status,'clarify');
+});
+test('history gate recognizes English and Nepali references but explicit periods override them',()=>{
+  for(const q of ['What about card sales on those same days?','Which week had more shortages?','Compare withdrawals between those two weeks.','ती दुई हप्ताको निकासी तुलना गर'])assert.equal(isComparisonFollowUp(q),true,q);
+  for(const q of ['What about opening cash on October 10, 2026?','Was cash balanced on 2026-10-10?','What about card sales this month?','अक्टोबर १०, २०२६ मा नगद मिलेको थियो?'])assert.equal(isComparisonFollowUp(q),false,q);
+});
+test('standalone allowlist covers every field with flow sums and balance snapshots unchanged',()=>{
+  const q={...singleQuery(COMPARISON_FIELDS),periods:[{start:'2026-10-05',end:'2026-10-18'}]};
+  const f=standaloneFacts(rows,q,calendar),p=f.period;
+  assert.equal(p.values.opening.valueCents,10000);assert.equal(p.values.closing.valueCents,37500);assert.equal(p.values.actual.valueCents,1600);assert.equal(p.values.cash.valueCents,21000);
+  for(const language of ['en','ne']){assert.ok(standaloneSentences(f,language).result);assert.doesNotMatch(standaloneEvidence(f,language),/SECRET|script/);}
+  for(const bad of [{...q,useContext:true},{...q,fields:['profit']},{...q,periods:periods},{...q,periods:[{start:'2026-02-30',end:'2026-03-01'}]}])assert.throws(()=>validateQuery(bad));
+  assert.throws(()=>standaloneFacts(rows,singleQuery(['cash'],'2026-10-19'),calendar));
+});
+test('standalone reconciliation distinguishes missing, zero, balanced and empty records',()=>{
+  const zero=record('2026-10-10',{opening:0,cash:0,expenses:0,withdrawals:0,actual:0});
+  assert.match(standaloneSentences(standaloneFacts([zero],singleQuery(),calendar),'en').result,/drawer was balanced/);
+  assert.match(standaloneSentences(standaloneFacts([{...zero,opening:100}],singleQuery(),calendar),'en').result,/short by \$1/);
+  assert.match(standaloneSentences(standaloneFacts([],singleQuery(),calendar),'en').result,/No ledger record/);
+});
+test('UI switches its active indicator to a standalone date and stops sending old comparison context',async()=>{
+  const {el,doc}=fixture(),requests=[];let c={uid:'alice',ready:true,empty:false,version:1};
+  const facts=standaloneFacts([record('2026-10-10')],singleQuery(),calendar);
+  const ui=createAskLedgerUI({context:()=>c,doc,request:async body=>{requests.push(body);return requests.length===1?{status:'answered',answer:'Compared.',language:'en',comparisonContext:'11111111-1111-4111-8111-111111111111',confirmedComparison:{periods,fields:['total_sales']}}:{status:'answered',answer:standaloneSentences(facts,'en').result,language:'en',facts,clearComparisonContext:true,activeQuestion:{kind:'ledger',periods:facts.query.periods,fields:facts.query.fields}};}});
+  const submit=()=>el('#ask-form').onsubmit({preventDefault(){}});
+  await submit();el('#ask-question').value='Was the drawer balanced October 10, 2026?';el('#ask-question').input();await submit();
+  assert.match(el('#ask-context').textContent,/Active question: 2026-10-10/);assert.doesNotMatch(el('#ask-context').textContent,/2026-10-05|Follow-ups/);assert.equal(el('#ask-forget').hidden,true);
+  await submit();assert.equal(requests[2].comparisonContext,undefined);
+  c.uid='bob';ui.refresh();assert.equal(el('#ask-context').textContent,'');
 });

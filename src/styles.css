@@ -79,6 +79,8 @@ button:disabled{opacity:.55;cursor:wait}
 .ask-actions label { display:flex; flex-direction:column; gap:6px; }
 .ask-suggestions .btn { white-space:normal; text-align:left; }
 .ask-answer { white-space:pre-line; line-height:1.7; }
+#ask-evidence-panel { border-top:1px solid #e0e6df; padding-top:14px; margin-top:16px; }
+#ask-evidence-title { cursor:pointer; font-weight:600; color:#244e3c; }
 .ask-evidence { white-space:pre-wrap; overflow-wrap:break-word; font:inherit; font-size:0.9rem; line-height:1.7; max-height:360px; overflow:auto; }
 .ask-panel :focus-visible { outline:3px solid #328254; outline-offset:3px; }
 @media(max-width:600px) { .ask-actions { align-items:stretch; } .ask-actions label { flex:1; } .ask-suggestions .btn { flex:1 1 140px; } }

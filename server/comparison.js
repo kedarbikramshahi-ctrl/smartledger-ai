@@ -9,12 +9,13 @@ export function relativePeriods(calendar) {
 }
 const exact=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===keys.length&&keys.every(k=>Object.hasOwn(value,k));
 
+export function validateDateRange(p,today) {
+  if(!exact(p,['start','end'])||!validDate(p.start)||!validDate(p.end)||p.start>p.end||(today&&p.end>today))throw Error('Choose real calendar dates through today, in order.');
+  return {start:p.start,end:p.end};
+}
 export function validatePeriods(periods,today) {
   if(!Array.isArray(periods)||periods.length!==2)throw Error('Choose two date ranges.');
-  return periods.map(p=>{
-    if(!exact(p,['start','end'])||!validDate(p.start)||!validDate(p.end)||p.start>p.end||(today&&p.end>today))throw Error('Choose real calendar dates through today, in order.');
-    return {start:p.start,end:p.end};
-  });
+  return periods.map(p=>validateDateRange(p,today));
 }
 export function validateFields(fields) {
   if(!Array.isArray(fields)||!fields.length||fields.length>COMPARISON_FIELDS.length||new Set(fields).size!==fields.length||fields.some(f=>!COMPARISON_FIELDS.includes(f)))throw Error('Choose supported ledger fields.');
@@ -32,12 +33,12 @@ export function resolveComparison(query,confirmed,calendar) {
   if(q.useContext&&!confirmed)return {metric:'clarify',period:'all',reason:'context'};
   return {...q,periods:validatePeriods(q.useContext?confirmed.periods:q.periods,calendar.today),useContext:false};
 }
-export function comparisonFacts(records,query,calendar) {
-  const q=resolveComparison(query,null,calendar);
-  if(q.metric!=='compare')throw Error('Comparison context is required.');
+export function ledgerPeriodFacts(records,ranges,calendar) {
+  if(!Array.isArray(ranges)||ranges.length<1||ranges.length>2)throw Error('Invalid ledger periods.');
+  const bounds=ranges.map(p=>validateDateRange(p,calendar.today));
   const rows=records.map(validateRecord).sort((a,b)=>a.date.localeCompare(b.date));
   if(rows.length>10000||new Set(rows.map(r=>r.date)).size!==rows.length)throw Error('Invalid ledger.');
-  const periods=q.periods.map(({start,end})=>{
+  return bounds.map(({start,end})=>{
     const selected=rows.filter(r=>r.date>=start&&r.date<=end);
     const sum=field=>selected.reduce((total,r)=>total+r[field],0);
     const counted=selected.filter(r=>r.actual!==undefined).map(r=>({date:r.date,actualCents:r.actual,expectedCents:close(r),differenceCents:r.actual-close(r)}));
@@ -54,6 +55,11 @@ export function comparisonFacts(records,query,calendar) {
       reconciliation:{countedDays:counted.length,uncountedDays:selected.length-counted.length,counted,shortageDays:shortages.length,overageDays:overages.length,balancedDays:counted.length-shortages.length-overages.length,
         totalShortageCents:shortages.reduce((s,r)=>s-r.differenceCents,0),totalOverageCents:overages.reduce((s,r)=>s+r.differenceCents,0)}};
   });
+}
+export function comparisonFacts(records,query,calendar) {
+  const q=resolveComparison(query,null,calendar);
+  if(q.metric!=='compare')throw Error('Comparison context is required.');
+  const periods=ledgerPeriodFacts(records,q.periods,calendar);
   const [a,b]=periods;
   const changes=Object.fromEntries(q.fields.map(field=>{
     if(['cash_difference','reconciliation'].includes(field)){

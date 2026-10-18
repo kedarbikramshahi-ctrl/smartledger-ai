@@ -1,5 +1,6 @@
 import { validateRecord, close, money } from '../src/ledger.js';
 import { validateComparison, QUERY_REASONS } from './comparison.js';
+import { validateStandalone } from './standalone.js';
 
 export const METRICS = ['sales','compare_sales','highest_sales','cash_differences','card_share','cash_expenses','unsupported','clarify'];
 export const PERIODS = ['all','this_week','last_week','this_month'];
@@ -8,6 +9,7 @@ export function parseAskRequest(body) {
   return {question:body.question.trim(),language:body.language,...(body.comparisonContext?{comparisonContext:body.comparisonContext}:{})};
 }
 export function validateQuery(query) {
+  if(query?.metric==='ledger')return validateStandalone(query);
   if(query?.metric==='compare')return validateComparison(query);
   if(query&&Object.keys(query).length===6){
     if(!['metric','period','periods','fields','useContext','reason'].every(k=>Object.hasOwn(query,k))||!Array.isArray(query.periods)||query.periods.length||!Array.isArray(query.fields)||query.fields.length||query.useContext!==false||!QUERY_REASONS.includes(query.reason))throw Error('Invalid interpreted query.');
@@ -69,7 +71,8 @@ export function answerSentences(f,language) {
   return sentences;
 }
 // AI composes explanations only from code-owned localized sentences. No free-form financial claims.
-export function validateExplanation(output,sentences) {
+export function validateExplanation(output,sentences,{leadWithResult=false}={}) {
   if(!output||typeof output!=='object'||Array.isArray(output)||Object.keys(output).length!==1||!Array.isArray(output.sentences)||output.sentences.length!==Object.keys(sentences).length||new Set(output.sentences).size!==output.sentences.length||output.sentences.some(k=>!Object.hasOwn(sentences,k)))throw Error('Invalid explanation.');
-  return output.sentences.map(k=>sentences[k]).join('\n\n');
+  const order=leadWithResult?['result',...output.sentences.filter(k=>k!=='result'&&k!=='coverage'),...(sentences.coverage?['coverage']:[])]:output.sentences;
+  return order.map(k=>sentences[k]).join('\n\n');
 }

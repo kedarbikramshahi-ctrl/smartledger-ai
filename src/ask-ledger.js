@@ -1,19 +1,21 @@
+import { standaloneDescription, standaloneEvidence } from './standalone-answer.js';
 import { money } from './ledger.js';
 import { comparisonDescription, comparisonEvidence } from './comparison-view.js';
 
 export function createAskLedgerUI({context,request,doc=globalThis.document}) {
   const form=doc.querySelector('#ask-form'),question=doc.querySelector('#ask-question'),language=doc.querySelector('#ask-language'),button=doc.querySelector('#ask-submit'),status=doc.querySelector('#ask-status'),output=doc.querySelector('#ask-answer'),evidence=doc.querySelector('#ask-evidence');
   const contextMessage=doc.querySelector('#ask-context'),forget=doc.querySelector('#ask-forget');
-  let key='',generation=0,controller,pending=false,owner=null,comparisonToken=null,confirmedComparison=null;
-  function forgetComparison(){comparisonToken=null;confirmedComparison=null;contextMessage.textContent='';forget.hidden=true;}
-  function clear(){generation++;controller?.abort();pending=false;output.textContent='';evidence.textContent='';status.textContent='';}
+  const evidencePanel=doc.querySelector('#ask-evidence-panel'),evidenceTitle=doc.querySelector('#ask-evidence-title');
+  let key='',generation=0,controller,pending=false,owner=null,comparisonToken=null,confirmedComparison=null,activeQuestion=null;
+  function forgetComparison(){comparisonToken=null;confirmedComparison=null;activeQuestion=null;contextMessage.textContent='';forget.hidden=true;}
+  function clear(){generation++;controller?.abort();pending=false;output.textContent='';evidence.textContent='';evidencePanel.hidden=true;evidencePanel.open=false;status.textContent='';}
   function refresh(){
     const c=context(),next=JSON.stringify([c.uid,c.version,c.ready,c.empty,question.value,language.value]);
     if(owner!==c.uid){owner=c.uid;forgetComparison();}
     if(next!==key){key=next;clear();}
     button.disabled=pending||!c.uid||!c.ready||c.busy||c.empty||c.emulator;
     form.setAttribute('aria-busy',String(pending));
-    contextMessage.textContent=confirmedComparison?(language.value==='ne'?'अर्को प्रश्नको तुलना: ':'Follow-ups use: ')+comparisonDescription(confirmedComparison,language.value)+(language.value==='ne'?'। सच्याउन दुवै मिति र विवरण फेरि लेख्नुहोस्।':'. To correct this, restate both dates and fields.'):'';
+    contextMessage.textContent=pending?'':activeQuestion?.kind==='ledger'?(language.value==='ne'?'????? ??????: ':'Active question: ')+standaloneDescription(activeQuestion,language.value):confirmedComparison?(language.value==='ne'?'अर्को प्रश्नको तुलना: ':'Follow-ups use: ')+comparisonDescription(confirmedComparison,language.value)+(language.value==='ne'?'। सच्याउन दुवै मिति र विवरण फेरि लेख्नुहोस्।':'. To correct this, restate both dates and fields.'):'';
     forget.hidden=!confirmedComparison;
     if(!c.uid)status.textContent='Sign in to ask about your saved ledger.';
     else if(c.emulator)status.textContent='Ask your ledger requires cloud sign-in; emulator accounts do not call AI.';
@@ -27,17 +29,19 @@ export function createAskLedgerUI({context,request,doc=globalThis.document}) {
     event.preventDefault();refresh();if(button.disabled)return;
     if(!question.value.trim()){status.textContent='Enter a question or choose a suggestion.';question.focus();return;}
     if([...question.value].length>500){status.textContent='Keep your question within 500 characters.';return;}
-    const token=++generation;controller=new AbortController();pending=true;output.textContent='';evidence.textContent='';status.textContent='Reading your saved records and preparing an answer…';refresh();
+    const token=++generation;controller=new AbortController();pending=true;output.textContent='';evidence.textContent='';evidencePanel.hidden=true;evidencePanel.open=false;status.textContent='Reading your saved records and preparing an answer…';refresh();
     try {
       const result=await request({question:question.value.trim(),language:language.value,...(comparisonToken?{comparisonContext:comparisonToken}:{})},controller.signal);
       if(token!==generation)return;
       if(typeof result.answer!=='string'||!['answered','empty','unsupported','clarify'].includes(result.status))throw Error('The answer response was incomplete.');
       if(result.clearComparisonContext)forgetComparison();
       if(['answered','empty'].includes(result.status)&&typeof result.comparisonContext==='string'&&result.confirmedComparison?.periods?.length===2){comparisonToken=result.comparisonContext;confirmedComparison=result.confirmedComparison;}
+      activeQuestion=result.activeQuestion||null;
       output.textContent=result.answer;output.lang=result.language;
       status.textContent=result.status==='unsupported'?'This question is outside the supported ledger queries.':result.status==='clarify'?'Please clarify your question.':result.status==='empty'?'No records match this question.':result.cached?'Saved answer reused for the current ledger.':'Answer based on your saved records. Review the evidence below.';
       const f=result.facts;
-      if(f?.query?.metric==='compare'){evidence.textContent=comparisonEvidence(f,result.language);evidence.lang=result.language;}
+      if(f?.query?.metric==='ledger'){evidence.textContent=standaloneEvidence(f,result.language);evidence.lang=result.language;}
+      else if(['compare','compare_sales'].includes(f?.query?.metric)){evidence.textContent=comparisonEvidence(f,result.language);evidence.lang=result.language;}
       else if(f){const p=f.current,ne=result.language==='ne';
         const metrics={sales:['Total sales','कुल बिक्री'],compare_sales:['Weekly sales comparison','हप्ताको बिक्री तुलना'],highest_sales:['Highest recorded sales day','उच्च बिक्री भएको रेकर्ड दिन'],cash_differences:['Counted cash differences','गनिएको नगदको फरक'],card_share:['Card share of sales','बिक्रीमा कार्डको हिस्सा'],cash_expenses:['Cash expenses','नगद खर्च']};
         const periods={all:['All records through today','आजसम्मका सबै रेकर्ड'],this_week:['This week','यो हप्ता'],last_week:['Last week','गत हप्ता'],this_month:['This month','यो महिना']};
@@ -50,6 +54,8 @@ export function createAskLedgerUI({context,request,doc=globalThis.document}) {
         for(const r of p.differences)lines.push(`${r.date}: ${ne?'अपेक्षित':'Expected'} ${money(r.expectedCents)}, ${ne?'गनिएको':'counted'} ${money(r.actualCents)}, ${ne?'फरक':'difference'} ${money(r.differenceCents)} (${r.differenceCents<0?(ne?'कमी':'shortage'):(ne?'बढी':'overage')})`);
         evidence.textContent=lines.join('\n');evidence.lang=result.language;
       }
+      evidenceTitle.textContent=result.language==='ne'?'प्रमाण':'Evidence';
+      evidencePanel.hidden=!evidence.textContent;
     } catch(error){if(token===generation&&error.name!=='AbortError')status.textContent=error.message;}
     finally{if(token===generation){pending=false;refresh();}}
   };
