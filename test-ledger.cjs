@@ -5,7 +5,7 @@ function el(id){if(!elements.has(id))elements.set(id,{value:'',textContent:'',in
 let stored=null,blobs=[],alerts=[],approve=true;
 const context=vm.createContext({Date,Intl,Set,JSON,Number,Math,String,Error,Blob,setTimeout,clearTimeout,createBackend:()=>null,document:{querySelector:el,querySelectorAll:()=>[],createElement:()=>({click(){}})},localStorage:{getItem:()=>null,setItem:(k,v)=>stored=v},URL:{createObjectURL:b=>(blobs.push(b),'blob:test'),revokeObjectURL(){}},alert:v=>alerts.push(v),confirm:()=>approve});
 // Exercise the actual split modules, with Firebase disabled and a simulated DOM.
-for(const file of ['src/ledger.js','src/dashboard.js','src/ai-summary.js','src/ask-ledger.js','src/app.js']){
+for(const file of ['src/ledger.js','src/dashboard.js','src/ai-summary.js','src/comparison-view.js','src/ask-ledger.js','src/app.js']){
  const source=fs.readFileSync(file,'utf8').replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,'');
  vm.runInContext(source,context,{filename:file});
 }

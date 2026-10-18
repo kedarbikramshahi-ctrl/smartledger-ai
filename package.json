@@ -11,7 +11,7 @@
     "dev:emulator": "vite --host 127.0.0.1 --mode emulator",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node test-ledger.cjs && node --test tests/unit.test.js tests/summary.test.js tests/ask.test.js",
+    "test": "node test-ledger.cjs && node --test tests/unit.test.js tests/summary.test.js tests/ask.test.js tests/comparison.test.js",
     "test:integration": "node --test --test-concurrency=1 tests/emulator.test.js && playwright test",
     "test:emulators": "node scripts/emulators.cjs exec",
     "test:ai-live": "node scripts/test-ai-live.js",

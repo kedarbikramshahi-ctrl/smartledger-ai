@@ -130,7 +130,7 @@
 <form id="ask-form">
 <label for="ask-question">Your question</label>
 <textarea id="ask-question" name="question" rows="3" maxlength="500" required aria-describedby="ask-help"></textarea>
-<small id="ask-help">Up to 500 characters. Supported periods: all records, this week, last week, this month. Weeks begin Monday.</small>
+<small id="ask-help">Up to 500 characters. Compare two dates or date ranges and name one or more ledger fields. Dates use the store timezone and Gregorian calendar; an omitted year uses the current store year. Weeks begin Monday.</small>
 <div class="ask-actions">
 <label for="ask-language">Answer language<select id="ask-language"><option value="en">English</option><option value="ne">नेपाली</option></select></label>
 <button class="btn" type="submit" id="ask-submit" disabled>Ask</button>
@@ -143,7 +143,10 @@
 <button class="btn secondary" type="button" data-ledger-question="Which days had cash shortages or overages?">Cash differences</button>
 <button class="btn secondary" type="button" data-ledger-question="What percentage of my sales came from card payments?">Card share</button>
 <button class="btn secondary" type="button" data-ledger-question="How much did I record in cash expenses this month?">This month's expenses</button>
+<button class="btn secondary" type="button" data-ledger-question="Compare this week with last week for cash sales and card sales.">Compare cash and card sales</button>
 </div>
+<p id="ask-context" aria-live="polite"></p>
+<button id="ask-forget" class="btn secondary" type="button" hidden>Forget comparison</button>
 <p id="ask-status" role="status" aria-live="polite"></p>
 <p id="ask-answer" class="ask-answer"></p>
 <pre id="ask-evidence" class="ask-evidence" tabindex="0" aria-label="Calculated evidence"></pre>

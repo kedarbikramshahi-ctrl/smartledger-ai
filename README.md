@@ -12,6 +12,8 @@ If an account appears in Authentication but the app says **Firestore denied acce
 
 **Ask your ledger:** signed-in cloud users can ask read-only questions in English or Nepali about sales, week comparisons, highest recorded sales, counted cash differences, card share and cash expenses. The answer shows server-calculated evidence and record coverage. Configure the server-only `STORE_TIMEZONE` (fallback `America/New_York`). See [Ask your ledger setup and limitations](docs/ask-your-ledger.md). Model interpretation/explanation is implemented; automated AI tests use mocks, and real OpenAI verification is still required.
 
+Custom comparisons in the same section accept everyday English/Nepali, two dates or date ranges, and multiple numeric columns. Flows are summed; opening/closing/actual cash use dated snapshots; reconciliation keeps shortages and overages separate. Follow-ups reuse the last successful comparison only within the current signed-in UI session, with interpreted periods/fields shown and a Forget comparison control. No notes analysis or ledger writes are supported.
+
 - `index.html`: page structure and forms, retaining the existing green dashboard design.
 - `src/styles.css`: responsive layout and styles.
 - `src/ledger.js`: integer-cent calculations, validation, CSV, backups and import planning.

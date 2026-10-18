@@ -1,5 +1,18 @@
 # Local validation — October 13, 2026
 
+## Everyday custom comparisons — October 18, 2026
+
+- `npm.cmd test`: all 42 unit/API tests pass (12 custom comparison, 19 Ask, 8 summary, 3 ledger tests), plus the retained simulated-DOM ledger regression suite. Final tests include unavailable payment mix, missing versus zero counts and follow-up periods for empty comparisons.
+- Firebase emulator integration: 2 tests pass against real local Auth/Firestore, including two-user isolation and record validation/persistence.
+- Chrome/Playwright: all 6 browser tests pass, including the new custom comparison UI test for mobile/desktop evidence, multiple fields, Nepali follow-up submission, owner changes and Forget comparison. Browser model requests and signed-in custom context are mocked; they do not verify a real cloud session or model interpretation.
+- `npm.cmd run build`: passes; existing Firebase bundle-size warning remains (about 591 kB minified / 178 kB gzip). No dependency changes.
+- Desktop and 390px mobile comparison screenshots were visually inspected. Notes still use the existing escaped-text renderer; comparison facts, model inputs and context exclude stored notes.
+- Custom tests validate natural English/Nepali fixture outputs through the strict query protocol, exact date pairs, multiple fields, balance snapshots versus flow sums, counted-date evidence, zero baselines, missing records/counts, separate shortage/overage amounts, broad differences, expiring owner-bound references, session clearing and existing rate limits. Mocked fixtures prove calculation/protocol behavior, not actual language interpretation quality.
+- The initial emulator launcher stalled before startup and was stopped. A successful isolated run used `$env:XDG_CONFIG_HOME = Join-Path (Get-Location) '.tools/firebase-test-config'; npm.cmd run test:emulators` outside the Windows sandbox. The ignored config location avoids depending on saved Firebase credentials.
+- The last missing-value/empty-context refinements were verified by the final unit/API suite and production build; the full browser/emulator run preceded those refinements. No real OpenAI call, live Firebase/Redis verification, commit, push or deployment was performed.
+
+Preview and limitations are documented in `docs/ask-your-ledger.md`. Earlier validation entries are historical.
+
 ## Ask your ledger — October 17, 2026
 
 - `npm.cmd test`: retained simulated-DOM ledger regressions and all 30 unit/API tests pass (19 Ask tests, 8 summary tests, 3 ledger unit tests), including Nepali UTF-8 split across request chunks.
