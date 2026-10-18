@@ -100,7 +100,8 @@ test('endpoint recomputes owned records for multiple fields and follow-ups; owne
   const ref=first.body.comparisonContext;assert.equal(typeof ref,'string');revision++;
   const next=await invoke(h,'What about withdrawals?',ref);assert.equal(next.statusCode,200);assert.deepEqual(received.comparison.periods,periods);assert.equal(next.body.facts.changes.withdrawals.changeCents,1000);
   const outsider=await invoke(h,'What about withdrawals?',ref,'bob');assert.equal(outsider.body.status,'clarify');assert.equal(outsider.body.clearComparisonContext,true);assert.equal(outsider.body.facts,undefined);
-  assert.equal((await invoke(h,'first')).statusCode,429,'revision invalidates the cache; two generations have consumed the minute budget');
+  assert.equal((await invoke(h,'first')).statusCode,200,'the third generation is allowed');revision++;
+  assert.equal((await invoke(h,'first')).statusCode,429,'revision invalidates the cache; three generations have consumed the minute budget');
 });
 test('contextless, expired, ambiguous and absent-information questions have short safe clarification/limitations',async()=>{
   const missing=await invoke(handler({interpret:async()=>query(['card'],periods,true)}),'What about card sales?');assert.equal(missing.body.status,'clarify');assert.match(missing.body.answer,/Which two periods/);

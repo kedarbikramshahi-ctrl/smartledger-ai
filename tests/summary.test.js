@@ -43,6 +43,7 @@ test('authenticated endpoint caches per user/data/language and fails safely',asy
  assert.equal((await invoke(handler)).body.cached,true);assert.equal(calls,1);
  uid='bob';assert.equal((await invoke(handler)).body.cached,false);assert.equal(calls,2);
  assert.equal((await invoke(handler,{language:'ne'})).statusCode,200);assert.equal(calls,3);
+ current.version.revision++;assert.equal((await invoke(handler)).statusCode,200,'Third per-user generation is allowed');
  current.version.revision++;assert.equal((await invoke(handler)).statusCode,429,'Minute rate limit covers fresh data/ranges');
  assert.equal((await invoke(handler,{},'')).statusCode,401);
  assert.equal((await invoke(handler,{uid:'alice'})).statusCode,400);

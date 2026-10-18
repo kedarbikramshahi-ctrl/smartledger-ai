@@ -7,6 +7,7 @@ import { verifyFirebaseIdentity, loadCloudLedger } from './summary-services.js';
 import { interpretQuestion, explainFacts } from './ask-services.js';
 import { resolveComparison, comparisonFacts, validateDateRange, validatePeriods, validateFields, relativePeriods } from './comparison.js';
 import { comparisonSentences } from '../src/comparison-view.js';
+import { askLimitResponse } from './ask-limits.js';
 const hash=value=>createHash('sha256').update(value).digest('hex');
 export function limitationAnswer(reason,language) {
   const messages={periods:['Which date or date range do you mean? For a comparison, specify both periods through today.','कुन दुई मिति वा अवधिको तुलना गर्ने? कृपया आजसम्मका मितिहरू दिनुहोस्।'],fields:['Which ledger fields would you like to compare?','लेजरका कुन विवरणहरू तुलना गर्ने?'],context:['Which two periods do you mean? Start a comparison with both date ranges.','कुन दुई अवधि भन्नुभएको हो? दुवै अवधि दिएर तुलना सुरु गर्नुहोस्।'],calendar:['Please specify unambiguous Gregorian dates, including the year if needed.','कृपया स्पष्ट ग्रेगोरियन मिति दिनुहोस्; आवश्यक भए वर्ष पनि लेख्नुहोस्।'],missing_data:['The ledger contains daily amounts and cash counts, not causes, profit, inventory, individual transactions or notes analysis.','लेजरमा दैनिक रकम र नगद गणना छन्; कारण, नाफा, मौज्दात, व्यक्तिगत कारोबार वा नोट विश्लेषण उपलब्ध छैन।'],unsupported:['I can compare saved ledger amounts and reconciliation. Record changes and unrelated requests are unsupported.','सुरक्षित लेजर रकम र नगद मिलान तुलना गर्न सकिन्छ। रेकर्ड परिवर्तन र असम्बन्धित अनुरोध समर्थित छैनन्।']};
@@ -85,6 +86,11 @@ export function createAskHandler(env,dependencies={}) {
       await store.put(key,JSON.stringify(result));return reply(200,result);
     } catch(error) {
       const status=error instanceof ServiceError?error.status:error instanceof SyntaxError?400:503;
+      if(status===429&&error.rateLimit){
+        const result=askLimitResponse(error.rateLimit);
+        res.setHeader('Retry-After',String(result.retryAfterSeconds));
+        return reply(429,result);
+      }
       return reply(status,{error:error instanceof ServiceError?error.message:status===400?'Invalid request JSON.':'Could not answer your ledger question. Try again later.'});
     } finally {if(key&&lock)try{await store.release(key,lock);}catch{/* Lease expires automatically. */}}
   };

@@ -31,7 +31,7 @@ Add **server** Environment Variables for the intended Vercel environment:
 
 None of these names may start with `VITE_`. Vite also rejects public-prefixed OpenAI/cache-token variable names to prevent accidental exposure. A REST Redis store can be connected through Vercel Marketplace. Do not change Firestore rules to allow public reads or to give browser clients access to summary rate counters. Production **fails closed** if shared storage is missing. `AI_USE_LOCAL_STORE=true` is permitted only in local development and never on Vercel. Redis is a separate service; review its pricing and storage settings before connecting it.
 
-Default generation caps: **2 uncached summaries/minute and 20/day per user**, plus **200/day across this deployment's Redis store**. Failed model requests count toward the cap. Authenticated summary requests, including cache reads, are limited to 300/hour per user before Firestore is queried. Unauthenticated requests are rejected before cache/ledger/model access. Keep an OpenAI project spend limit as an additional spending control.
+Default generation caps: **3 uncached summaries/minute and 25/day per user**, plus **200/day across this deployment's Redis store**. Failed model requests count toward the cap. Authenticated summary requests, including cache reads, are limited to 300/hour per user before Firestore is queried. Unauthenticated requests are rejected before cache/ledger/model access. Keep an OpenAI project spend limit as an additional spending control.
 
 ## Data and cache behavior
 

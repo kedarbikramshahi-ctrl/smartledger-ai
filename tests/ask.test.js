@@ -120,7 +120,7 @@ test('empty ledger returns explicit empty state; fallback timezone is visible',a
 });
 test('generation limits apply before interpretation, including failures; read caps and shared local budget',async()=>{
   let calls=0;const h=handler({interpret:async()=>{calls++;throw Error('offline');}});
-  await invoke(h);await invoke(h);assert.equal((await invoke(h)).statusCode,429);assert.equal(calls,2);
+  await invoke(h);await invoke(h);await invoke(h);assert.equal((await invoke(h)).statusCode,429);assert.equal(calls,3);
   const settings={NODE_ENV:'development',AI_USE_LOCAL_STORE:'true'};assert.equal(createSummaryStore(settings),createSummaryStore(settings));
   const s=createMemoryStore();for(let i=0;i<300;i++)await s.readLimit('owner');await assert.rejects(s.readLimit('owner'),/Too many/);
 });
@@ -133,7 +133,8 @@ test('concurrent questions have a lease; language/date cache keys and production
   assert.equal((await invoke(cacheHandler,{question:'What were my sales?',language:'ne'})).body.cached,false);
   assert.equal((await invoke(cacheHandler,{question:'What were my sales?',language:'ne'})).body.cached,true);
   now=new Date('2026-10-15T12:00Z');
-  // Date invalidates the cache; the same-minute test store budget still blocks a new generation.
+  // Date invalidates the cache; the third generation is allowed, the fourth is capped.
+  assert.equal((await invoke(cacheHandler)).statusCode,200);now=new Date('2026-10-16T12:00Z');
   assert.equal((await invoke(cacheHandler)).statusCode,429);
   const prod=createAskHandler({...env,NODE_ENV:'production',AI_USE_LOCAL_STORE:'true'},{verifyIdentity:async()=> 'alice'});
   assert.equal((await invoke(prod)).statusCode,503);
@@ -157,4 +158,73 @@ test('UI handles loading, errors, empty state and stale replies on edits/account
   c={...c,empty:true};ui.refresh();assert.match(el('#ask-status').textContent,/no saved records/);assert.equal(el('#ask-submit').disabled,true);
   c={...c,empty:false};ui.refresh();const next=el('#ask-form').onsubmit({preventDefault(){}});el('#ask-question').value='changed';el('#ask-question').input();resolve({status:'answered',answer:'stale'});await next;assert.equal(el('#ask-answer').textContent,'');
   createAskLedgerUI({context:()=>c,doc,request:async()=>{throw Error('API unavailable');}});await el('#ask-form').onsubmit({preventDefault(){}});assert.equal(el('#ask-status').textContent,'API unavailable');
+});
+import { createRedisStore } from '../server/summary-store.js';
+import { askLimitResponse } from '../server/ask-limits.js';
+async function rejectedRate(action){try{await action();assert.fail('Expected a rate limit');}catch(error){assert.equal(error.status,429);assert.ok(error.rateLimit);return error.rateLimit;}}
+
+test('minute limit identifies the exact shared cap and resets at the bucket boundary, not counter TTL',async()=>{
+  let time=Date.parse('2026-10-18T12:34:58Z');const store=createMemoryStore(()=>time);
+  for(let i=0;i<3;i++){const lock=await store.acquire('owner','key'+i);await store.release('key'+i,lock);}
+  const rate=await rejectedRate(()=>store.acquire('owner','fourth'));
+  assert.deepEqual(rate.limits,[{code:'user_minute',limit:3,resetAt:'2026-10-18T12:35:00.000Z'}]);
+  const message=askLimitResponse(rate);assert.equal(message.retryAfterSeconds,2);assert.match(message.error,/Ask your ledger:.*3 per minute/);assert.doesNotMatch(message.error,/Summary request limit/);
+  time+=2000;assert.ok(await store.acquire('owner','third'));
+});
+
+test('daily per-user limit preserves 25 cap and reports UTC midnight, including simultaneous minute cap',async()=>{
+  let time=Date.parse('2026-10-18T23:20:00Z');const store=createMemoryStore(()=>time);
+  for(let i=0;i<25;i++){if(i<23)time+=60000;const lock=await store.acquire('owner','k'+i);await store.release('k'+i,lock);}
+  const rate=await rejectedRate(()=>store.acquire('owner','daily'));
+  assert.deepEqual(rate.limits.map(l=>l.code),['user_daily','user_minute']);assert.equal(rate.retryAt,'2026-10-19T00:00:00.000Z');
+  time+=60000;const daily=await rejectedRate(()=>store.acquire('owner','daily'));assert.deepEqual(daily.limits.map(l=>l.code),['user_daily']);
+  time=Date.parse(rate.retryAt);assert.ok(await store.acquire('owner','daily'));
+});
+
+test('deployment daily cap remains 200, is shared across owners, and returns next UTC day',async()=>{
+  let time=Date.parse('2026-10-18T23:59:59Z');const store=createMemoryStore(()=>time);
+  for(let i=0;i<200;i++){const lock=await store.acquire('owner'+i,'k'+i);await store.release('k'+i,lock);}
+  const rate=await rejectedRate(()=>store.acquire('new-owner','next'));
+  assert.deepEqual(rate.limits,[{code:'deployment_daily',limit:200,resetAt:'2026-10-19T00:00:00.000Z'}]);
+  assert.match(askLimitResponse(rate).error,/deployment.*200 per UTC day/);time+=1000;assert.ok(await store.acquire('new-owner','next'));
+});
+
+test('hourly read and duplicate-question limits report their own actual reset times',async()=>{
+  let time=Date.parse('2026-10-18T12:59:57Z');const store=createMemoryStore(()=>time);
+  for(let i=0;i<300;i++)await store.readLimit('owner');
+  const read=await rejectedRate(()=>store.readLimit('owner'));assert.equal(read.limits[0].code,'user_hourly_reads');assert.equal(read.retryAt,'2026-10-18T13:00:00.000Z');
+  const lock=await store.acquire('owner','same');time+=10000;
+  const pending=await rejectedRate(()=>store.acquire('owner','same'));assert.equal(pending.limits[0].code,'in_progress');assert.equal(pending.retryAt,'2026-10-18T13:00:57.000Z');assert.equal(askLimitResponse(pending).retryAfterSeconds,50);
+  await store.release('same',lock);assert.ok(await store.acquire('owner','same'));await store.readLimit('owner');
+});
+
+test('Ask 429 response includes safe reason/reset metadata and Retry-After; budget shared with summaries',async()=>{
+  const time=Date.parse('2026-10-18T12:34:58Z'),store=createMemoryStore(()=>time);
+  const {createHash}=await import('node:crypto');const owner=createHash('sha256').update('alice').digest('hex');
+  // A summary generation consumes the same allowance before the Ask call.
+  await store.acquire(owner,'summary-key');
+  const h=handler({store,interpret:async()=>{throw Error('AI offline');}});
+  assert.equal((await invoke(h)).statusCode,502);
+  assert.equal((await invoke(h)).statusCode,502);
+  const headers={},res={setHeader(k,v){headers[k]=v;},end(raw){this.body=JSON.parse(raw);}};
+  await h({method:'POST',headers:{authorization:'Bearer alice'},body:{question:'What were my sales?',language:'en'}},res);
+  assert.equal(res.statusCode,429);assert.equal(headers['Retry-After'],'2');assert.equal(res.body.code,'ask_rate_limited');assert.equal(res.body.limits[0].code,'user_minute');assert.equal(res.body.retryAt,'2026-10-18T12:35:00.000Z');
+  assert.doesNotMatch(JSON.stringify(res.body),new RegExp(owner+'|fictional-key|summary-key|Bearer|sl:|What were my sales'));
+});
+
+test('Redis limiter protocol atomically identifies all blocked caps and obtains lock reset from Redis time/PTTL (mocked Redis)',async()=>{
+  const time=Date.parse('2026-10-18T12:34:58Z');let result=[0,1,2,3],args;
+  const store=createRedisStore({KV_REST_API_URL:'https://cache.invalid',KV_REST_API_TOKEN:'not-a-real-secret'},async(url,options)=>{args=JSON.parse(options.body);return {ok:true,json:async()=>({result})};},()=>time);
+  const rate=await rejectedRate(()=>store.acquire('owner','key'));assert.deepEqual(rate.limits.map(l=>l.code),['user_daily','deployment_daily','user_minute']);assert.equal(rate.retryAt,'2026-10-19T00:00:00.000Z');assert.deepEqual(args.slice(-4,-1),[25,200,3]);assert.match(args[1],/table.insert\(blocked,i\)/);
+  result=[2,time+17325];const pending=await rejectedRate(()=>store.acquire('owner','key'));assert.equal(pending.retryAt,'2026-10-18T12:35:15.325Z');assert.equal(askLimitResponse(pending).retryAfterSeconds,18);assert.match(args[1],/PTTL/);assert.match(args[1],/'TIME'/);
+  result=0;const reads=await rejectedRate(()=>store.readLimit('owner'));assert.equal(reads.limits[0].code,'user_hourly_reads');
+  result=1;assert.ok(await store.acquire('owner','key'));
+});
+
+test('Ask interface displays the server retry timestamp and preserves its question without automatically retrying',async()=>{
+  const {el,doc}=uiFixture();let calls=0;
+  const response=askLimitResponse({limits:[{code:'user_daily',limit:25,resetAt:'2026-10-19T00:00:00.000Z'}],retryAt:'2026-10-19T00:00:00.000Z',serverTime:'2026-10-18T23:59:30.000Z'});
+  createAskLedgerUI({context:()=>({uid:'alice',ready:true,version:1,empty:false}),doc,request:async()=>{calls++;throw Error(response.error);}});
+  el('#ask-question').value='What about October 13?';await el('#ask-form').onsubmit({preventDefault(){}});
+  assert.equal(el('#ask-status').textContent,response.error);assert.match(el('#ask-status').textContent,/25 per UTC day.*2026-10-19T00:00:00.000Z/);assert.equal(el('#ask-question').value,'What about October 13?');assert.equal(calls,1);
 });
